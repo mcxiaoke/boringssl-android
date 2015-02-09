@@ -4,6 +4,10 @@
 
 LOCAL_PATH := $(call my-dir)
 
+# All these modules are also defined in external/openssl, which is breaking the
+# build.
+ifeq (disable-build,)
+
 ## libcrypto
 
 # Target static library
@@ -100,3 +104,5 @@ LOCAL_CFLAGS += -fvisibility=hidden -DBORINGSSL_SHARED_LIBRARY -DBORINGSSL_IMPLE
 LOCAL_SHARED_LIBRARIES += libcrypto-host
 include $(LOCAL_PATH)/ssl-sources.mk
 include $(BUILD_HOST_SHARED_LIBRARY)
+
+endif
