@@ -12,6 +12,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcrypto_static
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/src/include
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/crypto-sources.mk
+LOCAL_SDK_VERSION := 9
 include $(LOCAL_PATH)/crypto-sources.mk
 include $(BUILD_STATIC_LIBRARY)
 
@@ -22,6 +23,7 @@ LOCAL_MODULE := libcrypto
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/src/include
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/crypto-sources.mk
 LOCAL_CFLAGS += -fvisibility=hidden -DBORINGSSL_SHARED_LIBRARY -DBORINGSSL_IMPLEMENTATION
+LOCAL_SDK_VERSION := 9
 include $(LOCAL_PATH)/crypto-sources.mk
 include $(BUILD_SHARED_LIBRARY)
 
@@ -66,6 +68,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libssl_static
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/src/include
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/ssl-sources.mk
+LOCAL_SDK_VERSION := 9
 include $(LOCAL_PATH)/ssl-sources.mk
 include $(BUILD_STATIC_LIBRARY)
 
@@ -77,6 +80,7 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/src/include
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/ssl-sources.mk
 LOCAL_CFLAGS += -fvisibility=hidden -DBORINGSSL_SHARED_LIBRARY -DBORINGSSL_IMPLEMENTATION
 LOCAL_SHARED_LIBRARIES=libcrypto
+LOCAL_SDK_VERSION := 9
 include $(LOCAL_PATH)/ssl-sources.mk
 include $(BUILD_SHARED_LIBRARY)
 
