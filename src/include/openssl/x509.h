@@ -1165,9 +1165,18 @@ OPENSSL_EXPORT int X509_TRUST_get_trust(X509_TRUST *xp);
 OPENSSL_EXPORT int PKCS7_get_certificates(STACK_OF(X509) *out_certs, CBS *cbs);
 
 /* PKCS7_bundle_certificates appends a PKCS#7, SignedData structure containing
- * |certs| to |cbb|. It returns one on success and zero on error. */
+ * |certs| to |out|. It returns one on success and zero on error. */
 OPENSSL_EXPORT int PKCS7_bundle_certificates(
     CBB *out, const STACK_OF(X509) *certs);
+
+/* PKCS7_get_CRLs parses a PKCS#7, SignedData structure from |cbs| and appends
+ * the included CRLs to |out_crls|. It returns one on success and zero on
+ * error. */
+OPENSSL_EXPORT int PKCS7_get_CRLs(STACK_OF(X509_CRL) *out_crls, CBS *cbs);
+
+/* PKCS7_bundle_CRLs appends a PKCS#7, SignedData structure containing
+ * |crls| to |out|. It returns one on success and zero on error. */
+OPENSSL_EXPORT int PKCS7_bundle_CRLs(CBB *out, const STACK_OF(X509_CRL) *crls);
 
 
 /* EVP_PK values indicate the algorithm of the public key in a certificate. */
@@ -1267,6 +1276,8 @@ OPENSSL_EXPORT int PKCS7_bundle_certificates(
 #define X509_F_i2d_DSA_PUBKEY 163
 #define X509_F_X509_TRUST_add 164
 #define X509_F_X509_NAME_ENTRY_create_by_NID 165
+#define X509_F_PKCS7_get_CRLs 166
+#define X509_F_pkcs7_parse_header 167
 #define X509_R_NO_CERT_SET_FOR_US_TO_VERIFY 100
 #define X509_R_UNABLE_TO_FIND_PARAMETERS_IN_CHAIN 101
 #define X509_R_METHOD_NOT_SUPPORTED 102
@@ -1305,5 +1316,6 @@ OPENSSL_EXPORT int PKCS7_bundle_certificates(
 #define X509_R_ERR_ASN1_LIB 136
 #define X509_R_AKID_MISMATCH 137
 #define X509_R_INVALID_BIT_STRING_BITS_LEFT 138
+#define X509_R_NO_CRLS_INCLUDED 139
 
 #endif
