@@ -491,7 +491,7 @@ err:
   }
 }
 
-int EC_GROUP_cmp(const EC_GROUP *a, const EC_GROUP *b) {
+int EC_GROUP_cmp(const EC_GROUP *a, const EC_GROUP *b, BN_CTX *ignored) {
   return a->curve_name == NID_undef ||
          b->curve_name == NID_undef ||
          a->curve_name != b->curve_name;
