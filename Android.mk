@@ -45,6 +45,10 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcrypto_static
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/src/include
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/crypto-sources.mk
+# Windows and Macs both have problems with assembly files
+ifneq ($(HOST_OS),linux)
+LOCAL_CFLAGS += -DOPENSSL_NO_ASM
+endif
 include $(LOCAL_PATH)/crypto-sources.mk
 include $(BUILD_HOST_STATIC_LIBRARY)
 
@@ -56,6 +60,10 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
 LOCAL_MULTILIB := both
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/crypto-sources.mk
 LOCAL_CFLAGS += -fvisibility=hidden -DBORINGSSL_SHARED_LIBRARY -DBORINGSSL_IMPLEMENTATION
+# Windows and Macs both have problems with assembly files
+ifneq ($(HOST_OS),linux)
+LOCAL_CFLAGS += -DOPENSSL_NO_ASM
+endif
 include $(LOCAL_PATH)/crypto-sources.mk
 include $(BUILD_HOST_SHARED_LIBRARY)
 
