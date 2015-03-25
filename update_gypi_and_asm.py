@@ -187,6 +187,7 @@ def main():
   tool_cc_files = FindCFiles(os.path.join('src', 'tool'), NoTests)
 
   crypto_c_files.append('android_compat_hacks.c')
+  crypto_c_files.append('android_compat_keywrap.c')
 
   with open('sources.mk', 'w+') as makefile:
     makefile.write(FILE_HEADER)

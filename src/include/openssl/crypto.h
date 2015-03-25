@@ -32,6 +32,17 @@ extern "C" {
  * nothing and a static initializer is used instead. */
 OPENSSL_EXPORT void CRYPTO_library_init(void);
 
+#define OPENSSL_VERSION_TEXT "BoringSSL"
+
+#define SSLEAY_VERSION 0
+
+/* SSLeay_version is a compatibility function that returns the string
+ * "BoringSSL". */
+OPENSSL_EXPORT const char *SSLeay_version(int unused);
+
+/* SSLeay is a compatibility function that returns the string "BoringSSL". */
+OPENSSL_EXPORT const char *SSLeay(void);
+
 
 #if defined(__cplusplus)
 }  /* extern C */

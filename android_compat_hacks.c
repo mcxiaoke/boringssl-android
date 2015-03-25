@@ -73,3 +73,8 @@ int SSL_set_session_ticket_ext_cb(SSL *s, void *cb, void *arg) {
 int SSL_set_session_secret_cb(SSL *s, void *cb, void *arg) {
   return 0;
 }
+
+int SSL_set_ssl_method(SSL *s, const SSL_METHOD *method) {
+  /* This is only called when EAP-FAST is being used, which is not supported. */
+  abort();
+}

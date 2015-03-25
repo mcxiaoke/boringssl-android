@@ -155,6 +155,9 @@
 /* Some code expected to get the threading functions by including ssl.h. */
 #include <openssl/thread.h>
 
+/* wpa_supplicant expects to get the version functions from ssl.h */
+#include <openssl/crypto.h>
+
 #ifdef  __cplusplus
 extern "C" {
 #endif
@@ -2192,6 +2195,7 @@ OPENSSL_EXPORT int SSL_set_session_ticket_ext(SSL *s, void *ext_data,
                                               int ext_len);
 OPENSSL_EXPORT int SSL_set_session_secret_cb(SSL *s, void *cb, void *arg);
 OPENSSL_EXPORT int SSL_set_session_ticket_ext_cb(SSL *s, void *cb, void *arg);
+OPENSSL_EXPORT int SSL_set_ssl_method(SSL *s, const SSL_METHOD *method);
 
 
 #ifdef  __cplusplus
