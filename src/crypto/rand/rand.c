@@ -26,3 +26,7 @@ void RAND_add(const void *buf, int num, double entropy) {}
 int RAND_poll(void) {
   return 1;
 }
+
+int RAND_status(void) {
+  return 1;
+}
