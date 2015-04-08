@@ -90,6 +90,12 @@ OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_256_ctr(void);
 OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_128_gcm(void);
 OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_256_gcm(void);
 
+/* Deprecated 192-bit version of AES. */
+OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_192_cbc(void);
+OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_192_ctr(void);
+OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_192_ecb(void);
+OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_192_gcm(void);
+
 /* EVP_enc_null returns a 'cipher' that passes plaintext through as
  * ciphertext. */
 OPENSSL_EXPORT const EVP_CIPHER *EVP_enc_null(void);
@@ -519,16 +525,6 @@ struct evp_cipher_st {
 
   int (*ctrl)(EVP_CIPHER_CTX *, int type, int arg, void *ptr);
 };
-
-
-/* Android compatibility section.
- *
- * These functions are declared, temporarily, for Android because
- * wpa_supplicant will take a little time to sync with upstream. Outside of
- * Android they'll have no definition. */
-
-OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_192_ecb(void);
-OPENSSL_EXPORT const EVP_CIPHER *EVP_aes_192_cbc(void);
 
 
 #if defined(__cplusplus)

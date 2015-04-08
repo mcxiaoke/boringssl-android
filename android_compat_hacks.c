@@ -28,10 +28,6 @@
 #include <openssl/ssl.h>
 
 
-const EVP_CIPHER *EVP_aes_192_ecb(void) { return NULL; }
-
-const EVP_CIPHER *EVP_aes_192_cbc(void) { return NULL; }
-
 BIGNUM *get_rfc3526_prime_1536(BIGNUM *bn) {
   assert(bn == NULL);
 
