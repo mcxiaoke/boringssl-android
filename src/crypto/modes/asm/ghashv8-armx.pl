@@ -44,7 +44,14 @@ $code=<<___;
 
 .text
 ___
-$code.=".arch	armv8-a+crypto\n"	if ($flavour =~ /64/);
+$code.=<<___	if ($flavour =~ /64/);
+#ifdef __clang__
+.arch	armv8-a
+.arch_extension	crypto
+#else
+.arch	armv8-a+crypto
+#endif
+___
 $code.=".fpu	neon\n.code	32\n"	if ($flavour !~ /64/);
 
 $code.=<<___;

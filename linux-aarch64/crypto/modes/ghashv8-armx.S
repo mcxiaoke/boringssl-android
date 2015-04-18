@@ -1,7 +1,12 @@
 #include "arm_arch.h"
 
 .text
+#ifdef __clang__
+.arch	armv8-a
+.arch_extension	crypto
+#else
 .arch	armv8-a+crypto
+#endif
 .global	gcm_init_v8
 .type	gcm_init_v8,%function
 .align	4
