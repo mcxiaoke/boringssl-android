@@ -273,7 +273,7 @@ static bool SpeedHash(const EVP_MD *md, const std::string &name) {
          SpeedHashChunk(md, name + " (8192 bytes)", 8192);
 }
 
-bool Speed(const std::vector<std::string> &args) {
+bool Speed(const std::vector<std::string>& /*args*/) {
   const uint8_t *inp;
 
   RSA *key = NULL;
