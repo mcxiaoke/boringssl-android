@@ -2,7 +2,12 @@
 
 #if __ARM_MAX_ARCH__>=7
 .text
+#ifdef __clang__
+.arch	armv8-a
+.arch_extension	crypto
+#else
 .arch	armv8-a+crypto
+#endif
 .align	5
 rcon:
 .long	0x01,0x01,0x01,0x01
