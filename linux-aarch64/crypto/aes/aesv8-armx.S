@@ -2,10 +2,7 @@
 
 #if __ARM_MAX_ARCH__>=7
 .text
-#ifdef __clang__
-.arch	armv8-a
-.arch_extension	crypto
-#else
+#if !defined(__clang__)
 .arch	armv8-a+crypto
 #endif
 .align	5

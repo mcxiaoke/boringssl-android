@@ -1,10 +1,7 @@
 #include "arm_arch.h"
 
 .text
-#ifdef __clang__
-.arch	armv8-a
-.arch_extension	crypto
-#else
+#if !defined(__clang__)
 .arch	armv8-a+crypto
 #endif
 .global	gcm_init_v8
