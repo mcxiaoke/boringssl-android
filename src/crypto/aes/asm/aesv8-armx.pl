@@ -40,10 +40,7 @@ $code=<<___;
 ___
 
 $code.=<<___	if ($flavour =~ /64/);
-#ifdef __clang__
-.arch	armv8-a
-.arch_extension	crypto
-#else
+#if !defined(__clang__)
 .arch	armv8-a+crypto
 #endif
 ___
