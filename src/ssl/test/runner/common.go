@@ -97,6 +97,7 @@ const (
 type CurveID uint16
 
 const (
+	CurveP224 CurveID = 21
 	CurveP256 CurveID = 23
 	CurveP384 CurveID = 24
 	CurveP521 CurveID = 25
@@ -429,14 +430,31 @@ type ProtocolBugs struct {
 	// ServerKeyExchange.
 	UnauthenticatedECDH bool
 
+	// SkipHelloVerifyRequest causes a DTLS server to skip the
+	// HelloVerifyRequest message.
+	SkipHelloVerifyRequest bool
+
+	// SkipCertificateStatus, if true, causes the server to skip the
+	// CertificateStatus message. This is legal because CertificateStatus is
+	// optional, even with a status_request in ServerHello.
+	SkipCertificateStatus bool
+
 	// SkipServerKeyExchange causes the server to skip sending
 	// ServerKeyExchange messages.
 	SkipServerKeyExchange bool
+
+	// SkipNewSessionTicket causes the server to skip sending the
+	// NewSessionTicket message despite promising to in ServerHello.
+	SkipNewSessionTicket bool
 
 	// SkipChangeCipherSpec causes the implementation to skip
 	// sending the ChangeCipherSpec message (and adjusting cipher
 	// state accordingly for the Finished message).
 	SkipChangeCipherSpec bool
+
+	// SkipFinished causes the implementation to skip sending the Finished
+	// message.
+	SkipFinished bool
 
 	// EarlyChangeCipherSpec causes the client to send an early
 	// ChangeCipherSpec message before the ClientKeyExchange. A value of
@@ -448,10 +466,6 @@ type ProtocolBugs struct {
 	// the Finished (or NextProto) message around the ChangeCipherSpec
 	// messages.
 	FragmentAcrossChangeCipherSpec bool
-
-	// SkipNewSessionTicket causes the server to skip sending the
-	// NewSessionTicket message despite promising to in ServerHello.
-	SkipNewSessionTicket bool
 
 	// SendV2ClientHello causes the client to send a V2ClientHello
 	// instead of a normal ClientHello.
@@ -475,8 +489,9 @@ type ProtocolBugs struct {
 	// two records.
 	FragmentAlert bool
 
-	// SendSpuriousAlert will cause an spurious, unwanted alert to be sent.
-	SendSpuriousAlert bool
+	// SendSpuriousAlert, if non-zero, will cause an spurious, unwanted
+	// alert to be sent.
+	SendSpuriousAlert alert
 
 	// RsaClientKeyExchangeVersion, if non-zero, causes the client to send a
 	// ClientKeyExchange with the specified version rather than the
@@ -491,15 +506,18 @@ type ProtocolBugs struct {
 	// TLS version in the ClientHello than the maximum supported version.
 	SendClientVersion uint16
 
-	// SkipHelloVerifyRequest causes a DTLS server to skip the
-	// HelloVerifyRequest message.
-	SkipHelloVerifyRequest bool
-
 	// ExpectFalseStart causes the server to, on full handshakes,
 	// expect the peer to False Start; the server Finished message
 	// isn't sent until we receive an application data record
 	// from the peer.
 	ExpectFalseStart bool
+
+	// AlertBeforeFalseStartTest, if non-zero, causes the server to, on full
+	// handshakes, send an alert just before reading the application data
+	// record to test False Start. This can be used in a negative False
+	// Start test to determine whether the peer processed the alert (and
+	// closed the connection) before or after sending app data.
+	AlertBeforeFalseStartTest alert
 
 	// SSL3RSAKeyExchange causes the client to always send an RSA
 	// ClientKeyExchange message without the two-byte length
@@ -557,9 +575,10 @@ type ProtocolBugs struct {
 	// retransmit at the record layer.
 	SequenceNumberIncrement uint64
 
-	// RSAServerKeyExchange, if true, causes the server to send a
-	// ServerKeyExchange message in the plain RSA key exchange.
-	RSAServerKeyExchange bool
+	// RSAEphemeralKey, if true, causes the server to send a
+	// ServerKeyExchange message containing an ephemeral key (as in
+	// RSA_EXPORT) in the plain RSA key exchange.
+	RSAEphemeralKey bool
 
 	// SRTPMasterKeyIdentifer, if not empty, is the SRTP MKI value that the
 	// client offers when negotiating SRTP. MKI support is still missing so
@@ -577,6 +596,10 @@ type ProtocolBugs struct {
 	// CertificateRequest message. None the less, the configured set will
 	// still be enforced.
 	NoSignatureAndHashes bool
+
+	// NoSupportedCurves, if true, causes the client to omit the
+	// supported_curves extension.
+	NoSupportedCurves bool
 
 	// RequireSameRenegoClientVersion, if true, causes the server
 	// to require that all ClientHellos match in offered version
@@ -603,6 +626,87 @@ type ProtocolBugs struct {
 	// AppDataAfterChangeCipherSpec, if not null, causes application data to
 	// be sent immediately after ChangeCipherSpec.
 	AppDataAfterChangeCipherSpec []byte
+
+	// AlertAfterChangeCipherSpec, if non-zero, causes an alert to be sent
+	// immediately after ChangeCipherSpec.
+	AlertAfterChangeCipherSpec alert
+
+	// TimeoutSchedule is the schedule of packet drops and simulated
+	// timeouts for before each handshake leg from the peer.
+	TimeoutSchedule []time.Duration
+
+	// PacketAdaptor is the packetAdaptor to use to simulate timeouts.
+	PacketAdaptor *packetAdaptor
+
+	// ReorderHandshakeFragments, if true, causes handshake fragments in
+	// DTLS to overlap and be sent in the wrong order. It also causes
+	// pre-CCS flights to be sent twice. (Post-CCS flights consist of
+	// Finished and will trigger a spurious retransmit.)
+	ReorderHandshakeFragments bool
+
+	// MixCompleteMessageWithFragments, if true, causes handshake
+	// messages in DTLS to redundantly both fragment the message
+	// and include a copy of the full one.
+	MixCompleteMessageWithFragments bool
+
+	// SendInvalidRecordType, if true, causes a record with an invalid
+	// content type to be sent immediately following the handshake.
+	SendInvalidRecordType bool
+
+	// WrongCertificateMessageType, if true, causes Certificate message to
+	// be sent with the wrong message type.
+	WrongCertificateMessageType bool
+
+	// FragmentMessageTypeMismatch, if true, causes all non-initial
+	// handshake fragments in DTLS to have the wrong message type.
+	FragmentMessageTypeMismatch bool
+
+	// FragmentMessageLengthMismatch, if true, causes all non-initial
+	// handshake fragments in DTLS to have the wrong message length.
+	FragmentMessageLengthMismatch bool
+
+	// SplitFragmentHeader, if true, causes the handshake fragments in DTLS
+	// to be split across two records.
+	SplitFragmentHeader bool
+
+	// SplitFragmentBody, if true, causes the handshake bodies in DTLS to be
+	// split across two records.
+	//
+	// TODO(davidben): There's one final split to test: when the header and
+	// body are split across two records. But those are (incorrectly)
+	// accepted right now.
+	SplitFragmentBody bool
+
+	// SendEmptyFragments, if true, causes handshakes to include empty
+	// fragments in DTLS.
+	SendEmptyFragments bool
+
+	// NeverResumeOnRenego, if true, causes renegotiations to always be full
+	// handshakes.
+	NeverResumeOnRenego bool
+
+	// NoSignatureAlgorithmsOnRenego, if true, causes renegotiations to omit
+	// the signature_algorithms extension.
+	NoSignatureAlgorithmsOnRenego bool
+
+	// IgnorePeerCipherPreferences, if true, causes the peer's cipher
+	// preferences to be ignored.
+	IgnorePeerCipherPreferences bool
+
+	// IgnorePeerSignatureAlgorithmPreferences, if true, causes the peer's
+	// signature algorithm preferences to be ignored.
+	IgnorePeerSignatureAlgorithmPreferences bool
+
+	// IgnorePeerCurvePreferences, if true, causes the peer's curve
+	// preferences to be ignored.
+	IgnorePeerCurvePreferences bool
+
+	// SendWarningAlerts, if non-zero, causes every record to be prefaced by
+	// a warning alert.
+	SendWarningAlerts alert
+
+	// BadFinished, if true, causes the Finished hash to be broken.
+	BadFinished bool
 }
 
 func (c *Config) serverInit() {

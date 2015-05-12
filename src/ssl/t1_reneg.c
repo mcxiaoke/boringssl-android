@@ -106,14 +106,14 @@
  * (eay@cryptsoft.com).  This product includes software written by Tim
  * Hudson (tjh@cryptsoft.com). */
 
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <openssl/bytestring.h>
-#include <openssl/obj.h>
 #include <openssl/err.h>
 
-#include "ssl_locl.h"
+#include "internal.h"
 
 
 /* Add the client's renegotiation binding */
@@ -170,8 +170,7 @@ int ssl_add_serverhello_renegotiate_ext(SSL *s, unsigned char *p, int *len,
                                         int maxlen) {
   if (p) {
     if (s->s3->previous_client_finished_len +
-            s->s3->previous_server_finished_len + 1 >
-        maxlen) {
+            s->s3->previous_server_finished_len + 1 > maxlen) {
       OPENSSL_PUT_ERROR(SSL, ssl_add_serverhello_renegotiate_ext,
                         SSL_R_RENEGOTIATE_EXT_TOO_LONG);
       return 0;

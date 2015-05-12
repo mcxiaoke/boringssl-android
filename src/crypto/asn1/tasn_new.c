@@ -100,8 +100,6 @@ static int asn1_item_ex_combine_new(ASN1_VALUE **pval, const ASN1_ITEM *it,
 	else
 		asn1_cb = 0;
 
-	if (!combine) *pval = NULL;
-
 #ifdef CRYPTO_MDEBUG
 	if (it->sname)
 		CRYPTO_push_info(it->sname);
@@ -212,6 +210,7 @@ static int asn1_item_ex_combine_new(ASN1_VALUE **pval, const ASN1_ITEM *it,
 
 	memerr:
 	OPENSSL_PUT_ERROR(ASN1, asn1_item_ex_combine_new,  ERR_R_MALLOC_FAILURE);
+	ASN1_item_ex_free(pval, it);
 #ifdef CRYPTO_MDEBUG
 	if (it->sname) CRYPTO_pop_info();
 #endif
@@ -328,14 +327,17 @@ int ASN1_primitive_new(ASN1_VALUE **pval, const ASN1_ITEM *it)
 	ASN1_STRING *str;
 	int utype;
 
-	if (it && it->funcs)
+	if (!it)
+		return 0;
+
+	if (it->funcs)
 		{
 		const ASN1_PRIMITIVE_FUNCS *pf = it->funcs;
 		if (pf->prim_new)
 			return pf->prim_new(pval, it);
 		}
 
-	if (!it || (it->itype == ASN1_ITYPE_MSTRING))
+	if (it->itype == ASN1_ITYPE_MSTRING)
 		utype = -1;
 	else
 		utype = it->utype;
