@@ -114,17 +114,19 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <openssl/bn.h>
 #include <openssl/buf.h>
 #include <openssl/dh.h>
 #include <openssl/evp.h>
+#include <openssl/err.h>
 #include <openssl/md5.h>
 #include <openssl/mem.h>
 #include <openssl/obj.h>
 #include <openssl/rand.h>
 
-#include "ssl_locl.h"
+#include "internal.h"
 
 static int dtls1_get_hello_verify(SSL *s);
 
@@ -156,7 +158,6 @@ int dtls1_connect(SSL *s) {
       case SSL_ST_RENEGOTIATE:
         s->renegotiate = 1;
         s->state = SSL_ST_CONNECT;
-        s->ctx->stats.sess_connect_renegotiate++;
       /* break */
       case SSL_ST_CONNECT:
       case SSL_ST_BEFORE | SSL_ST_CONNECT:
@@ -175,8 +176,7 @@ int dtls1_connect(SSL *s) {
           buf = NULL;
         }
 
-        if (!ssl3_setup_buffers(s) ||
-            !ssl_init_wbio_buffer(s, 0)) {
+        if (!ssl_init_wbio_buffer(s, 0)) {
           ret = -1;
           goto end;
         }
@@ -184,7 +184,6 @@ int dtls1_connect(SSL *s) {
         /* don't push the buffering BIO quite yet */
 
         s->state = SSL3_ST_CW_CLNT_HELLO_A;
-        s->ctx->stats.sess_connect++;
         s->init_num = 0;
         s->d1->send_cookie = 0;
         s->hit = 0;
@@ -458,12 +457,6 @@ int dtls1_connect(SSL *s) {
       case SSL3_ST_CW_FLUSH:
         s->rwstate = SSL_WRITING;
         if (BIO_flush(s->wbio) <= 0) {
-          /* If the write error was fatal, stop trying */
-          if (!BIO_should_retry(s->wbio)) {
-            s->rwstate = SSL_NOTHING;
-            s->state = s->s3->tmp.next_state;
-          }
-
           ret = -1;
           goto end;
         }
@@ -483,15 +476,12 @@ int dtls1_connect(SSL *s) {
         s->new_session = 0;
 
         ssl_update_cache(s, SSL_SESS_CACHE_CLIENT);
-        if (s->hit) {
-          s->ctx->stats.sess_hit++;
-        }
 
         ret = 1;
-        s->ctx->stats.sess_connect_good++;
 
-        if (cb != NULL)
+        if (cb != NULL) {
           cb(s, SSL_CB_HANDSHAKE_DONE, 1);
+        }
 
         /* done with handshaking */
         s->d1->handshake_read_seq = 0;
@@ -519,9 +509,7 @@ int dtls1_connect(SSL *s) {
 end:
   s->in_handshake--;
 
-  if (buf != NULL) {
-    BUF_MEM_free(buf);
-  }
+  BUF_MEM_free(buf);
   if (cb != NULL) {
     cb(s, SSL_CB_CONNECT_EXIT, ret);
   }
@@ -538,7 +526,7 @@ static int dtls1_get_hello_verify(SSL *s) {
       s, DTLS1_ST_CR_HELLO_VERIFY_REQUEST_A, DTLS1_ST_CR_HELLO_VERIFY_REQUEST_B,
       -1,
       /* Use the same maximum size as ssl3_get_server_hello. */
-      20000, SSL_GET_MESSAGE_HASH_MESSAGE, &ok);
+      20000, ssl_hash_message, &ok);
 
   if (!ok) {
     return n;
@@ -556,7 +544,7 @@ static int dtls1_get_hello_verify(SSL *s) {
       !CBS_get_u8_length_prefixed(&hello_verify_request, &cookie) ||
       CBS_len(&hello_verify_request) != 0) {
     al = SSL_AD_DECODE_ERROR;
-    OPENSSL_PUT_ERROR(SSL, ssl3_get_cert_status, SSL_R_DECODE_ERROR);
+    OPENSSL_PUT_ERROR(SSL, dtls1_get_hello_verify, SSL_R_DECODE_ERROR);
     goto f_err;
   }
 

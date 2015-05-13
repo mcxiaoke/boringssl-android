@@ -1,8 +1,21 @@
-# This file is created by update_gypi_and_asm.py. Do not edit manually.
+# Copyright (C) 2015 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 crypto_sources := \
   android_compat_hacks.c\
   android_compat_keywrap.c\
+  err_data.c\
   src/crypto/aes/aes.c\
   src/crypto/aes/mode_wrappers.c\
   src/crypto/asn1/a_bitstr.c\
@@ -23,7 +36,6 @@ crypto_sources := \
   src/crypto/asn1/a_type.c\
   src/crypto/asn1/a_utctm.c\
   src/crypto/asn1/a_utf8.c\
-  src/crypto/asn1/asn1_error.c\
   src/crypto/asn1/asn1_lib.c\
   src/crypto/asn1/asn1_par.c\
   src/crypto/asn1/asn_pack.c\
@@ -45,7 +57,6 @@ crypto_sources := \
   src/crypto/asn1/x_long.c\
   src/crypto/base64/base64.c\
   src/crypto/bio/bio.c\
-  src/crypto/bio/bio_error.c\
   src/crypto/bio/bio_mem.c\
   src/crypto/bio/buffer.c\
   src/crypto/bio/connect.c\
@@ -59,7 +70,6 @@ crypto_sources := \
   src/crypto/bn/add.c\
   src/crypto/bn/asm/x86_64-gcc.c\
   src/crypto/bn/bn.c\
-  src/crypto/bn/bn_error.c\
   src/crypto/bn/cmp.c\
   src/crypto/bn/convert.c\
   src/crypto/bn/ctx.c\
@@ -76,7 +86,6 @@ crypto_sources := \
   src/crypto/bn/shift.c\
   src/crypto/bn/sqrt.c\
   src/crypto/buf/buf.c\
-  src/crypto/buf/buf_error.c\
   src/crypto/bytestring/ber.c\
   src/crypto/bytestring/cbb.c\
   src/crypto/bytestring/cbs.c\
@@ -84,7 +93,6 @@ crypto_sources := \
   src/crypto/chacha/chacha_vec.c\
   src/crypto/cipher/aead.c\
   src/crypto/cipher/cipher.c\
-  src/crypto/cipher/cipher_error.c\
   src/crypto/cipher/derive_key.c\
   src/crypto/cipher/e_aes.c\
   src/crypto/cipher/e_chacha20poly1305.c\
@@ -95,51 +103,44 @@ crypto_sources := \
   src/crypto/cipher/e_ssl3.c\
   src/crypto/cipher/e_tls.c\
   src/crypto/cipher/tls_cbc.c\
+  src/crypto/cmac/cmac.c\
   src/crypto/conf/conf.c\
-  src/crypto/conf/conf_error.c\
   src/crypto/cpu-arm.c\
   src/crypto/cpu-intel.c\
   src/crypto/crypto.c\
-  src/crypto/crypto_error.c\
   src/crypto/des/des.c\
   src/crypto/dh/check.c\
   src/crypto/dh/dh.c\
   src/crypto/dh/dh_asn1.c\
-  src/crypto/dh/dh_error.c\
   src/crypto/dh/dh_impl.c\
   src/crypto/dh/params.c\
   src/crypto/digest/digest.c\
-  src/crypto/digest/digest_error.c\
   src/crypto/digest/digests.c\
   src/crypto/directory_posix.c\
   src/crypto/directory_win.c\
   src/crypto/dsa/dsa.c\
   src/crypto/dsa/dsa_asn1.c\
-  src/crypto/dsa/dsa_error.c\
   src/crypto/dsa/dsa_impl.c\
   src/crypto/ec/ec.c\
   src/crypto/ec/ec_asn1.c\
-  src/crypto/ec/ec_error.c\
   src/crypto/ec/ec_key.c\
   src/crypto/ec/ec_montgomery.c\
   src/crypto/ec/oct.c\
+  src/crypto/ec/p256-64.c\
   src/crypto/ec/simple.c\
+  src/crypto/ec/util-64.c\
   src/crypto/ec/wnaf.c\
   src/crypto/ecdh/ecdh.c\
-  src/crypto/ecdh/ecdh_error.c\
   src/crypto/ecdsa/ecdsa.c\
   src/crypto/ecdsa/ecdsa_asn1.c\
-  src/crypto/ecdsa/ecdsa_error.c\
   src/crypto/engine/engine.c\
-  src/crypto/engine/engine_error.c\
   src/crypto/err/err.c\
-  src/crypto/err/err_impl.c\
   src/crypto/evp/algorithm.c\
   src/crypto/evp/asn1.c\
   src/crypto/evp/digestsign.c\
   src/crypto/evp/evp.c\
   src/crypto/evp/evp_ctx.c\
-  src/crypto/evp/evp_error.c\
+  src/crypto/evp/p_dsa_asn1.c\
   src/crypto/evp/p_ec.c\
   src/crypto/evp/p_ec_asn1.c\
   src/crypto/evp/p_hmac.c\
@@ -149,9 +150,7 @@ crypto_sources := \
   src/crypto/evp/pbkdf.c\
   src/crypto/evp/sign.c\
   src/crypto/ex_data.c\
-  src/crypto/ex_data_impl.c\
   src/crypto/hkdf/hkdf.c\
-  src/crypto/hkdf/hkdf_error.c\
   src/crypto/hmac/hmac.c\
   src/crypto/lhash/lhash.c\
   src/crypto/md4/md4.c\
@@ -163,10 +162,8 @@ crypto_sources := \
   src/crypto/modes/gcm.c\
   src/crypto/modes/ofb.c\
   src/crypto/obj/obj.c\
-  src/crypto/obj/obj_error.c\
   src/crypto/obj/obj_xref.c\
   src/crypto/pem/pem_all.c\
-  src/crypto/pem/pem_error.c\
   src/crypto/pem/pem_info.c\
   src/crypto/pem/pem_lib.c\
   src/crypto/pem/pem_oth.c\
@@ -178,10 +175,10 @@ crypto_sources := \
   src/crypto/pkcs8/p5_pbev2.c\
   src/crypto/pkcs8/p8_pkey.c\
   src/crypto/pkcs8/pkcs8.c\
-  src/crypto/pkcs8/pkcs8_error.c\
   src/crypto/poly1305/poly1305.c\
   src/crypto/poly1305/poly1305_arm.c\
   src/crypto/poly1305/poly1305_vec.c\
+  src/crypto/rand/hwrand.c\
   src/crypto/rand/rand.c\
   src/crypto/rand/urandom.c\
   src/crypto/rand/windows.c\
@@ -190,13 +187,15 @@ crypto_sources := \
   src/crypto/rsa/padding.c\
   src/crypto/rsa/rsa.c\
   src/crypto/rsa/rsa_asn1.c\
-  src/crypto/rsa/rsa_error.c\
   src/crypto/rsa/rsa_impl.c\
   src/crypto/sha/sha1.c\
   src/crypto/sha/sha256.c\
   src/crypto/sha/sha512.c\
   src/crypto/stack/stack.c\
   src/crypto/thread.c\
+  src/crypto/thread_none.c\
+  src/crypto/thread_pthread.c\
+  src/crypto/thread_win.c\
   src/crypto/time_support.c\
   src/crypto/x509/a_digest.c\
   src/crypto/x509/a_sign.c\
@@ -215,7 +214,6 @@ crypto_sources := \
   src/crypto/x509/x509_cmp.c\
   src/crypto/x509/x509_d2.c\
   src/crypto/x509/x509_def.c\
-  src/crypto/x509/x509_error.c\
   src/crypto/x509/x509_ext.c\
   src/crypto/x509/x509_lu.c\
   src/crypto/x509/x509_obj.c\
@@ -279,7 +277,6 @@ crypto_sources := \
   src/crypto/x509v3/v3_skey.c\
   src/crypto/x509v3/v3_sxnet.c\
   src/crypto/x509v3/v3_utl.c\
-  src/crypto/x509v3/x509v3_error.c\
 
 ssl_sources := \
   src/ssl/d1_both.c\
@@ -300,8 +297,7 @@ ssl_sources := \
   src/ssl/ssl_algs.c\
   src/ssl/ssl_asn1.c\
   src/ssl/ssl_cert.c\
-  src/ssl/ssl_ciph.c\
-  src/ssl/ssl_error.c\
+  src/ssl/ssl_cipher.c\
   src/ssl/ssl_lib.c\
   src/ssl/ssl_rsa.c\
   src/ssl/ssl_sess.c\
@@ -317,6 +313,7 @@ tool_sources := \
   src/tool/const.cc\
   src/tool/digest.cc\
   src/tool/pkcs12.cc\
+  src/tool/rand.cc\
   src/tool/server.cc\
   src/tool/speed.cc\
   src/tool/tool.cc\
@@ -340,6 +337,7 @@ linux_arm_sources := \
   linux-arm/crypto/sha/sha256-armv4.S\
   linux-arm/crypto/sha/sha512-armv4.S\
   src/crypto/chacha/chacha_vec_arm.S\
+  src/crypto/cpu-arm-asm.S\
   src/crypto/poly1305/poly1305_arm_asm.S\
 
 linux_x86_sources := \
@@ -370,6 +368,7 @@ linux_x86_64_sources := \
   linux-x86_64/crypto/md5/md5-x86_64.S\
   linux-x86_64/crypto/modes/aesni-gcm-x86_64.S\
   linux-x86_64/crypto/modes/ghash-x86_64.S\
+  linux-x86_64/crypto/rand/rdrand-x86_64.S\
   linux-x86_64/crypto/rc4/rc4-md5-x86_64.S\
   linux-x86_64/crypto/rc4/rc4-x86_64.S\
   linux-x86_64/crypto/sha/sha1-x86_64.S\
@@ -404,11 +403,27 @@ mac_x86_64_sources := \
   mac-x86_64/crypto/md5/md5-x86_64.S\
   mac-x86_64/crypto/modes/aesni-gcm-x86_64.S\
   mac-x86_64/crypto/modes/ghash-x86_64.S\
+  mac-x86_64/crypto/rand/rdrand-x86_64.S\
   mac-x86_64/crypto/rc4/rc4-md5-x86_64.S\
   mac-x86_64/crypto/rc4/rc4-x86_64.S\
   mac-x86_64/crypto/sha/sha1-x86_64.S\
   mac-x86_64/crypto/sha/sha256-x86_64.S\
   mac-x86_64/crypto/sha/sha512-x86_64.S\
+
+win_x86_sources := \
+  win-x86/crypto/aes/aes-586.asm\
+  win-x86/crypto/aes/aesni-x86.asm\
+  win-x86/crypto/aes/vpaes-x86.asm\
+  win-x86/crypto/bn/bn-586.asm\
+  win-x86/crypto/bn/co-586.asm\
+  win-x86/crypto/bn/x86-mont.asm\
+  win-x86/crypto/cpu-x86-asm.asm\
+  win-x86/crypto/md5/md5-586.asm\
+  win-x86/crypto/modes/ghash-x86.asm\
+  win-x86/crypto/rc4/rc4-586.asm\
+  win-x86/crypto/sha/sha1-586.asm\
+  win-x86/crypto/sha/sha256-586.asm\
+  win-x86/crypto/sha/sha512-586.asm\
 
 win_x86_64_sources := \
   win-x86_64/crypto/aes/aes-x86_64.asm\
@@ -423,6 +438,7 @@ win_x86_64_sources := \
   win-x86_64/crypto/md5/md5-x86_64.asm\
   win-x86_64/crypto/modes/aesni-gcm-x86_64.asm\
   win-x86_64/crypto/modes/ghash-x86_64.asm\
+  win-x86_64/crypto/rand/rdrand-x86_64.asm\
   win-x86_64/crypto/rc4/rc4-md5-x86_64.asm\
   win-x86_64/crypto/rc4/rc4-x86_64.asm\
   win-x86_64/crypto/sha/sha1-x86_64.asm\

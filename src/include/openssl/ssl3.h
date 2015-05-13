@@ -117,9 +117,11 @@
 #ifndef HEADER_SSL3_H
 #define HEADER_SSL3_H
 
+#include <openssl/aead.h>
 #include <openssl/buf.h>
 #include <openssl/evp.h>
 #include <openssl/ssl.h>
+#include <openssl/type_check.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -237,19 +239,28 @@ extern "C" {
 
 /* The standards give a maximum encryption overhead of 1024 bytes. In practice
  * the value is lower than this. The overhead is the maximum number of padding
- * bytes (256) plus the mac size. */
+ * bytes (256) plus the mac size.
+ *
+ * TODO(davidben): This derivation doesn't take AEADs into account, or TLS 1.1
+ * explicit nonces. It happens to work because |SSL3_RT_MAX_MD_SIZE| is larger
+ * than necessary and no true AEAD has variable overhead in TLS 1.2. */
 #define SSL3_RT_MAX_ENCRYPTED_OVERHEAD (256 + SSL3_RT_MAX_MD_SIZE)
 
-/* OpenSSL currently only uses a padding length of at most one block so the
- * send overhead is smaller. */
-
+/* SSL3_RT_SEND_MAX_ENCRYPTED_OVERHEAD is the maximum overhead in encrypting a
+ * record. This does not include the record header. Some ciphers use explicit
+ * nonces, so it includes both the AEAD overhead as well as the nonce. */
 #define SSL3_RT_SEND_MAX_ENCRYPTED_OVERHEAD \
-  (SSL_RT_MAX_CIPHER_BLOCK_SIZE + SSL3_RT_MAX_MD_SIZE)
+    (EVP_AEAD_MAX_OVERHEAD + EVP_AEAD_MAX_NONCE_LENGTH)
 
-/* If compression isn't used don't include the compression overhead */
+OPENSSL_COMPILE_ASSERT(
+    SSL3_RT_MAX_ENCRYPTED_OVERHEAD >= SSL3_RT_SEND_MAX_ENCRYPTED_OVERHEAD,
+    max_overheads_are_consistent);
 
-#define SSL3_RT_MAX_COMPRESSED_LENGTH \
-  (SSL3_RT_MAX_PLAIN_LENGTH + SSL3_RT_MAX_COMPRESSED_OVERHEAD)
+/* SSL3_RT_MAX_COMPRESSED_LENGTH is an alias for
+ * |SSL3_RT_MAX_PLAIN_LENGTH|. Compression is gone, so don't include the
+ * compression overhead. */
+#define SSL3_RT_MAX_COMPRESSED_LENGTH SSL3_RT_MAX_PLAIN_LENGTH
+
 #define SSL3_RT_MAX_ENCRYPTED_LENGTH \
   (SSL3_RT_MAX_ENCRYPTED_OVERHEAD + SSL3_RT_MAX_COMPRESSED_LENGTH)
 #define SSL3_RT_MAX_PACKET_SIZE \
@@ -347,7 +358,6 @@ typedef struct ssl3_state_st {
 
   /* flags for countermeasure against known-IV weakness */
   int need_record_splitting;
-  int record_split_done;
 
   /* The value of 'extra' when the buffers were initialized */
   int init_extra;
@@ -399,9 +409,6 @@ typedef struct ssl3_state_st {
    * no more data in the read or write buffers */
   int renegotiate;
   int total_renegotiations;
-  int num_renegotiations;
-
-  int in_read_app_data;
 
   /* State pertaining to the pending handshake.
    *
@@ -486,6 +493,10 @@ typedef struct ssl3_state_st {
     /* new_mac_secret_size is unused and exists only until wpa_supplicant can
      * be updated. It is only needed for EAP-FAST, which we don't support. */
     uint8_t new_mac_secret_size;
+
+    /* Client-only: in_false_start is one if there is a pending handshake in
+     * False Start. The client may write data at this point. */
+    char in_false_start;
   } tmp;
 
   /* Connection binding to prevent renegotiation attacks */
@@ -528,7 +539,7 @@ typedef struct ssl3_state_st {
 /* client */
 /* extra state */
 #define SSL3_ST_CW_FLUSH (0x100 | SSL_ST_CONNECT)
-#define SSL3_ST_CUTTHROUGH_COMPLETE (0x101 | SSL_ST_CONNECT)
+#define SSL3_ST_FALSE_START (0x101 | SSL_ST_CONNECT)
 /* write to server */
 #define SSL3_ST_CW_CLNT_HELLO_A (0x110 | SSL_ST_CONNECT)
 #define SSL3_ST_CW_CLNT_HELLO_B (0x111 | SSL_ST_CONNECT)
@@ -583,8 +594,6 @@ typedef struct ssl3_state_st {
 #define SSL3_ST_SR_CLNT_HELLO_C (0x112 | SSL_ST_ACCEPT)
 #define SSL3_ST_SR_CLNT_HELLO_D (0x115 | SSL_ST_ACCEPT)
 /* write to client */
-#define DTLS1_ST_SW_HELLO_VERIFY_REQUEST_A (0x113 | SSL_ST_ACCEPT)
-#define DTLS1_ST_SW_HELLO_VERIFY_REQUEST_B (0x114 | SSL_ST_ACCEPT)
 #define SSL3_ST_SW_HELLO_REQ_A (0x120 | SSL_ST_ACCEPT)
 #define SSL3_ST_SW_HELLO_REQ_B (0x121 | SSL_ST_ACCEPT)
 #define SSL3_ST_SW_HELLO_REQ_C (0x122 | SSL_ST_ACCEPT)

@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <errno.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
@@ -31,7 +32,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #else
-#define NOMINMAX
 #include <io.h>
 #pragma warning(push, 3)
 #include <winsock2.h>
@@ -172,6 +172,17 @@ void PrintConnectionInfo(const SSL *ssl) {
   fprintf(stderr, "  Cipher: %s\n", SSL_CIPHER_get_name(cipher));
   fprintf(stderr, "  Secure renegotiation: %s\n",
           SSL_get_secure_renegotiation_support(ssl) ? "yes" : "no");
+
+  const uint8_t *next_proto;
+  unsigned next_proto_len;
+  SSL_get0_next_proto_negotiated(ssl, &next_proto, &next_proto_len);
+  fprintf(stderr, "  Next protocol negotiated: %.*s\n", next_proto_len,
+          next_proto);
+
+  const uint8_t *alpn;
+  unsigned alpn_len;
+  SSL_get0_alpn_selected(ssl, &alpn, &alpn_len);
+  fprintf(stderr, "  ALPN protocol: %.*s\n", alpn_len, alpn);
 }
 
 bool SocketSetNonBlocking(int sock, bool is_non_blocking) {

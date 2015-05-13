@@ -9,13 +9,12 @@ add_library(
   p8_pkey.c
   p5_pbe.c
   p5_pbev2.c
-  pkcs8_error.c
 )
 
 add_executable(
   pkcs12_test
 
-  pkcs12_test.c
+  pkcs12_test.cc
 )
 
 target_link_libraries(pkcs12_test crypto)

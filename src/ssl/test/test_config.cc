@@ -60,7 +60,6 @@ const Flag<bool> kBoolFlags[] = {
   { "-no-tls11", &TestConfig::no_tls11 },
   { "-no-tls1", &TestConfig::no_tls1 },
   { "-no-ssl3", &TestConfig::no_ssl3 },
-  { "-cookie-exchange", &TestConfig::cookie_exchange },
   { "-shim-writes-first", &TestConfig::shim_writes_first },
   { "-tls-d5-bug", &TestConfig::tls_d5_bug },
   { "-expect-session-miss", &TestConfig::expect_session_miss },
@@ -73,6 +72,15 @@ const Flag<bool> kBoolFlags[] = {
   { "-enable-signed-cert-timestamps",
     &TestConfig::enable_signed_cert_timestamps },
   { "-fastradio-padding", &TestConfig::fastradio_padding },
+  { "-implicit-handshake", &TestConfig::implicit_handshake },
+  { "-use-early-callback", &TestConfig::use_early_callback },
+  { "-fail-early-callback", &TestConfig::fail_early_callback },
+  { "-install-ddos-callback", &TestConfig::install_ddos_callback },
+  { "-fail-ddos-callback", &TestConfig::fail_ddos_callback },
+  { "-fail-second-ddos-callback", &TestConfig::fail_second_ddos_callback },
+  { "-handshake-never-done", &TestConfig::handshake_never_done },
+  { "-use-export-context", &TestConfig::use_export_context },
+  { "-reject-peer-renegotiations", &TestConfig::reject_peer_renegotiations },
 };
 
 const Flag<std::string> kStringFlags[] = {
@@ -91,6 +99,9 @@ const Flag<std::string> kStringFlags[] = {
   { "-psk", &TestConfig::psk },
   { "-psk-identity", &TestConfig::psk_identity },
   { "-srtp-profiles", &TestConfig::srtp_profiles },
+  { "-cipher", &TestConfig::cipher },
+  { "-export-label", &TestConfig::export_label },
+  { "-export-context", &TestConfig::export_context },
 };
 
 const Flag<std::string> kBase64Flags[] = {
@@ -102,42 +113,14 @@ const Flag<std::string> kBase64Flags[] = {
 };
 
 const Flag<int> kIntFlags[] = {
+  { "-port", &TestConfig::port },
   { "-min-version", &TestConfig::min_version },
   { "-max-version", &TestConfig::max_version },
   { "-mtu", &TestConfig::mtu },
+  { "-export-keying-material", &TestConfig::export_keying_material },
 };
 
 }  // namespace
-
-TestConfig::TestConfig()
-    : is_server(false),
-      is_dtls(false),
-      resume(false),
-      fallback_scsv(false),
-      require_any_client_certificate(false),
-      false_start(false),
-      async(false),
-      write_different_record_sizes(false),
-      cbc_record_splitting(false),
-      partial_write(false),
-      no_tls12(false),
-      no_tls11(false),
-      no_tls1(false),
-      no_ssl3(false),
-      cookie_exchange(false),
-      shim_writes_first(false),
-      tls_d5_bug(false),
-      expect_session_miss(false),
-      expect_extended_master_secret(false),
-      renegotiate(false),
-      allow_unsafe_legacy_renegotiation(false),
-      enable_ocsp_stapling(false),
-      enable_signed_cert_timestamps(false),
-      fastradio_padding(false),
-      min_version(0),
-      max_version(0),
-      mtu(0) {
-}
 
 bool ParseConfig(int argc, char **argv, TestConfig *out_config) {
   for (int i = 0; i < argc; i++) {
