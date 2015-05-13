@@ -452,6 +452,7 @@ const SSL_CIPHER ssl3_ciphers[] = {
      128, 128,
     },
 
+#if !defined(ANDROID)
     {
      TLS1_TXT_ECDHE_RSA_WITH_CHACHA20_POLY1305,
      TLS1_CK_ECDHE_RSA_CHACHA20_POLY1305, SSL_kECDHE, SSL_aRSA,
@@ -475,6 +476,7 @@ const SSL_CIPHER ssl3_ciphers[] = {
      SSL_HANDSHAKE_MAC_SHA256 | TLS1_PRF_SHA256 | SSL_CIPHER_ALGORITHM2_AEAD,
      256, 0,
     },
+#endif
 };
 
 const SSL3_ENC_METHOD SSLv3_enc_data = {
