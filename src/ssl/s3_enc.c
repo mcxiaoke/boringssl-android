@@ -133,8 +133,9 @@
  * OTHER ENTITY BASED ON INFRINGEMENT OF INTELLECTUAL PROPERTY RIGHTS OR
  * OTHERWISE. */
 
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -142,7 +143,7 @@
 #include <openssl/md5.h>
 #include <openssl/obj.h>
 
-#include "ssl_locl.h"
+#include "internal.h"
 
 
 static const uint8_t ssl3_pad_1[48] = {
@@ -235,12 +236,8 @@ void ssl3_cleanup_key_block(SSL *s) {
 }
 
 int ssl3_init_finished_mac(SSL *s) {
-  if (s->s3->handshake_buffer) {
-    BIO_free(s->s3->handshake_buffer);
-  }
-  if (s->s3->handshake_dgst) {
-    ssl3_free_digest_list(s);
-  }
+  BIO_free(s->s3->handshake_buffer);
+  ssl3_free_digest_list(s);
   s->s3->handshake_buffer = BIO_new(BIO_s_mem());
   if (s->s3->handshake_buffer == NULL) {
     return 0;
@@ -264,12 +261,11 @@ void ssl3_free_digest_list(SSL *s) {
   s->s3->handshake_dgst = NULL;
 }
 
-void ssl3_finish_mac(SSL *s, const uint8_t *buf, int len) {
+int ssl3_finish_mac(SSL *s, const uint8_t *buf, int len) {
   int i;
 
   if (s->s3->handshake_buffer) {
-    BIO_write(s->s3->handshake_buffer, (void *)buf, len);
-    return;
+    return BIO_write(s->s3->handshake_buffer, (void *)buf, len) >= 0;
   }
 
   for (i = 0; i < SSL_MAX_DIGEST; i++) {
@@ -277,12 +273,13 @@ void ssl3_finish_mac(SSL *s, const uint8_t *buf, int len) {
       EVP_DigestUpdate(s->s3->handshake_dgst[i], buf, len);
     }
   }
+  return 1;
 }
 
 int ssl3_digest_cached_records(
     SSL *s, enum should_free_handshake_buffer_t should_free_handshake_buffer) {
   int i;
-  long mask;
+  uint32_t mask;
   const EVP_MD *md;
   const uint8_t *hdata;
   size_t hdatalen;
@@ -303,7 +300,7 @@ int ssl3_digest_cached_records(
   }
 
   /* Loop through bits of algorithm2 field and create MD_CTX-es */
-  for (i = 0; ssl_get_handshake_digest(i, &mask, &md); i++) {
+  for (i = 0; ssl_get_handshake_digest(&mask, &md, i); i++) {
     if ((mask & ssl_get_algorithm2(s)) && md) {
       s->s3->handshake_dgst[i] = EVP_MD_CTX_create();
       if (s->s3->handshake_dgst[i] == NULL) {
@@ -383,7 +380,7 @@ static int ssl3_handshake_mac(SSL *s, int md_nid, const char *sender, int len,
   EVP_MD_CTX_init(&ctx);
   if (!EVP_MD_CTX_copy_ex(&ctx, d)) {
     EVP_MD_CTX_cleanup(&ctx);
-    OPENSSL_PUT_ERROR(SSL, ssl3_generate_key_block, ERR_LIB_EVP);
+    OPENSSL_PUT_ERROR(SSL, ssl3_handshake_mac, ERR_LIB_EVP);
     return 0;
   }
 
@@ -402,7 +399,7 @@ static int ssl3_handshake_mac(SSL *s, int md_nid, const char *sender, int len,
 
   if (!EVP_DigestInit_ex(&ctx, EVP_MD_CTX_md(&ctx), NULL)) {
     EVP_MD_CTX_cleanup(&ctx);
-    OPENSSL_PUT_ERROR(SSL, ssl3_generate_key_block, ERR_LIB_EVP);
+    OPENSSL_PUT_ERROR(SSL, ssl3_handshake_mac, ERR_LIB_EVP);
     return 0;
   }
   EVP_DigestUpdate(&ctx, s->session->master_key, s->session->master_key_length);
@@ -415,15 +412,16 @@ static int ssl3_handshake_mac(SSL *s, int md_nid, const char *sender, int len,
   return ret;
 }
 
-void ssl3_record_sequence_update(uint8_t *seq) {
-  int i;
-
-  for (i = 7; i >= 0; i--) {
+int ssl3_record_sequence_update(uint8_t *seq, size_t seq_len) {
+  size_t i;
+  for (i = seq_len - 1; i < seq_len; i--) {
     ++seq[i];
     if (seq[i] != 0) {
-      break;
+      return 1;
     }
   }
+  OPENSSL_PUT_ERROR(SSL, ssl3_record_sequence_update, ERR_R_OVERFLOW);
+  return 0;
 }
 
 int ssl3_alert_code(int code) {

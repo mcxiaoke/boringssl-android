@@ -54,10 +54,9 @@
  * copied and put under another distribution licence
  * [including the GNU Public Licence.] */
 
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include <openssl/bio.h>
 #include <openssl/cipher.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
@@ -68,8 +67,9 @@ static void hexdump(FILE *f, const char *title, const uint8_t *s, int l) {
 
   fprintf(f, "%s", title);
   for (; n < l; ++n) {
-    if ((n % 16) == 0)
+    if ((n % 16) == 0) {
       fprintf(f, "\n%04x", n);
+    }
     fprintf(f, " %02x", s[n]);
   }
   fprintf(f, "\n");
@@ -123,15 +123,16 @@ static uint8_t *ustrsep(char **p, const char *sep) {
   return (uint8_t *)sstrsep(p, sep);
 }
 
-static void test1(const EVP_CIPHER *c, const uint8_t *key, int kn,
-                  const uint8_t *iv, int in, const uint8_t *plaintext, int pn,
-                  const uint8_t *ciphertext, int cn, const uint8_t *aad, int an,
-                  const uint8_t *tag, int tn, int encdec) {
+static void test1(const char* cipher_name, const EVP_CIPHER *c,
+                  const uint8_t *key, int kn, const uint8_t *iv, int in,
+                  const uint8_t *plaintext, int pn, const uint8_t *ciphertext,
+                  int cn, const uint8_t *aad, int an, const uint8_t *tag,
+                  int tn, int encdec) {
   EVP_CIPHER_CTX ctx;
   uint8_t out[4096];
   int outl, outl2, mode;
 
-  printf("Testing cipher %s%s\n", EVP_CIPHER_name(c),
+  printf("Testing cipher %s%s\n", cipher_name,
          (encdec == 1 ? "(encrypt)"
                       : (encdec == 0 ? "(decrypt)" : "(encrypt/decrypt)")));
   hexdump(stdout, "Key", key, kn);
@@ -157,39 +158,39 @@ static void test1(const EVP_CIPHER *c, const uint8_t *key, int kn,
     if (mode == EVP_CIPH_GCM_MODE) {
       if (!EVP_EncryptInit_ex(&ctx, c, NULL, NULL, NULL)) {
         fprintf(stderr, "EncryptInit failed\n");
-        BIO_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         exit(10);
       }
       if (!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_SET_IVLEN, in, NULL)) {
         fprintf(stderr, "IV length set failed\n");
-        BIO_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         exit(11);
       }
       if (!EVP_EncryptInit_ex(&ctx, NULL, NULL, key, iv)) {
         fprintf(stderr, "Key/IV set failed\n");
-        BIO_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         exit(12);
       }
       if (an && !EVP_EncryptUpdate(&ctx, NULL, &outl, aad, an)) {
         fprintf(stderr, "AAD set failed\n");
-        BIO_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         exit(13);
       }
     } else if (!EVP_EncryptInit_ex(&ctx, c, NULL, key, iv)) {
       fprintf(stderr, "EncryptInit failed\n");
-      BIO_print_errors_fp(stderr);
+      ERR_print_errors_fp(stderr);
       exit(10);
     }
     EVP_CIPHER_CTX_set_padding(&ctx, 0);
 
     if (!EVP_EncryptUpdate(&ctx, out, &outl, plaintext, pn)) {
       fprintf(stderr, "Encrypt failed\n");
-      BIO_print_errors_fp(stderr);
+      ERR_print_errors_fp(stderr);
       exit(6);
     }
     if (!EVP_EncryptFinal_ex(&ctx, out + outl, &outl2)) {
       fprintf(stderr, "EncryptFinal failed\n");
-      BIO_print_errors_fp(stderr);
+      ERR_print_errors_fp(stderr);
       exit(7);
     }
 
@@ -212,7 +213,7 @@ static void test1(const EVP_CIPHER *c, const uint8_t *key, int kn,
        */
       if (!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_GET_TAG, tn, rtag)) {
         fprintf(stderr, "Get tag failed\n");
-        BIO_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         exit(14);
       }
       if (memcmp(rtag, tag, tn)) {
@@ -228,45 +229,45 @@ static void test1(const EVP_CIPHER *c, const uint8_t *key, int kn,
     if (mode == EVP_CIPH_GCM_MODE) {
       if (!EVP_DecryptInit_ex(&ctx, c, NULL, NULL, NULL)) {
         fprintf(stderr, "EncryptInit failed\n");
-        BIO_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         exit(10);
       }
       if (!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_SET_IVLEN, in, NULL)) {
         fprintf(stderr, "IV length set failed\n");
-        BIO_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         exit(11);
       }
       if (!EVP_DecryptInit_ex(&ctx, NULL, NULL, key, iv)) {
         fprintf(stderr, "Key/IV set failed\n");
-        BIO_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         exit(12);
       }
       if (!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_SET_TAG, tn, (void *)tag)) {
         fprintf(stderr, "Set tag failed\n");
-        BIO_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         exit(14);
       }
       if (an && !EVP_DecryptUpdate(&ctx, NULL, &outl, aad, an)) {
         fprintf(stderr, "AAD set failed\n");
-        BIO_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         exit(13);
       }
     } else if (!EVP_DecryptInit_ex(&ctx, c, NULL, key, iv)) {
       fprintf(stderr, "DecryptInit failed\n");
-      BIO_print_errors_fp(stderr);
+      ERR_print_errors_fp(stderr);
       exit(11);
     }
     EVP_CIPHER_CTX_set_padding(&ctx, 0);
 
     if (!EVP_DecryptUpdate(&ctx, out, &outl, ciphertext, cn)) {
       fprintf(stderr, "Decrypt failed\n");
-      BIO_print_errors_fp(stderr);
+      ERR_print_errors_fp(stderr);
       exit(6);
     }
     outl2 = 0;
     if (!EVP_DecryptFinal_ex(&ctx, out + outl, &outl2)) {
       fprintf(stderr, "DecryptFinal failed\n");
-      BIO_print_errors_fp(stderr);
+      ERR_print_errors_fp(stderr);
       exit(7);
     }
 
@@ -310,6 +311,12 @@ static int test_cipher(const char *cipher, const uint8_t *key, int kn,
     c = EVP_aes_128_cbc();
   } else if (strcmp(cipher, "AES-128-GCM") == 0) {
     c = EVP_aes_128_gcm();
+  } else if (strcmp(cipher, "AES-128-OFB") == 0) {
+    c = EVP_aes_128_ofb();
+  } else if (strcmp(cipher, "AES-192-CBC") == 0) {
+    c = EVP_aes_192_cbc();
+  } else if (strcmp(cipher, "AES-192-ECB") == 0) {
+    c = EVP_aes_192_ecb();
   } else if (strcmp(cipher, "AES-256-CBC") == 0) {
     c = EVP_aes_256_cbc();
   } else if (strcmp(cipher, "AES-128-CTR") == 0) {
@@ -318,13 +325,15 @@ static int test_cipher(const char *cipher, const uint8_t *key, int kn,
     c = EVP_aes_256_ctr();
   } else if (strcmp(cipher, "AES-256-GCM") == 0) {
     c = EVP_aes_256_gcm();
+  } else if (strcmp(cipher, "AES-256-OFB") == 0) {
+    c = EVP_aes_256_ofb();
   } else {
     fprintf(stderr, "Unknown cipher type %s\n", cipher);
     return 0;
   }
 
-  test1(c, key, kn, iv, in, plaintext, pn, ciphertext, cn, aad, an, tag, tn,
-        encdec);
+  test1(cipher, c, key, kn, iv, in, plaintext, pn, ciphertext, cn, aad, an,
+        tag, tn, encdec);
 
   return 1;
 }
@@ -388,8 +397,9 @@ int main(int argc, char **argv) {
       if (p[-1] == '\n') {
         encdec = -1;
         p[-1] = '\0';
-      } else
+      } else {
         encdec = atoi(sstrsep(&p, "\n"));
+      }
     }
 
     kn = convert(key);

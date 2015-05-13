@@ -6,7 +6,6 @@ add_library(
   OBJECT
 
   bio.c
-  bio_error.c
   bio_mem.c
   buffer.c
   connect.c
@@ -22,7 +21,7 @@ add_library(
 add_executable(
   bio_test
 
-  bio_test.c
+  bio_test.cc
 )
 
 target_link_libraries(bio_test crypto)

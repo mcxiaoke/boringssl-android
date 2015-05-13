@@ -64,7 +64,7 @@
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 
-#include "ssl_locl.h"
+#include "internal.h"
 
 static int ssl_set_cert(CERT *c, X509 *x509);
 static int ssl_set_pkey(CERT *c, EVP_PKEY *pkey);
@@ -72,10 +72,6 @@ static int ssl_set_pkey(CERT *c, EVP_PKEY *pkey);
 int SSL_use_certificate(SSL *ssl, X509 *x) {
   if (x == NULL) {
     OPENSSL_PUT_ERROR(SSL, SSL_use_certificate, ERR_R_PASSED_NULL_PARAMETER);
-    return 0;
-  }
-  if (!ssl_cert_inst(&ssl->cert)) {
-    OPENSSL_PUT_ERROR(SSL, SSL_use_certificate, ERR_R_MALLOC_FAILURE);
     return 0;
   }
   return ssl_set_cert(ssl->cert, x);
@@ -118,12 +114,8 @@ int SSL_use_certificate_file(SSL *ssl, const char *file, int type) {
   ret = SSL_use_certificate(ssl, x);
 
 end:
-  if (x != NULL) {
-    X509_free(x);
-  }
-  if (in != NULL) {
-    BIO_free(in);
-  }
+  X509_free(x);
+  BIO_free(in);
 
   return ret;
 }
@@ -152,11 +144,6 @@ int SSL_use_RSAPrivateKey(SSL *ssl, RSA *rsa) {
     return 0;
   }
 
-  if (!ssl_cert_inst(&ssl->cert)) {
-    OPENSSL_PUT_ERROR(SSL, SSL_use_RSAPrivateKey, ERR_R_MALLOC_FAILURE);
-    return 0;
-  }
-
   pkey = EVP_PKEY_new();
   if (pkey == NULL) {
     OPENSSL_PUT_ERROR(SSL, SSL_use_RSAPrivateKey, ERR_R_EVP_LIB);
@@ -182,12 +169,6 @@ static int ssl_set_pkey(CERT *c, EVP_PKEY *pkey) {
   }
 
   if (c->pkeys[i].x509 != NULL) {
-    EVP_PKEY *pktmp;
-    pktmp = X509_get_pubkey(c->pkeys[i].x509);
-    EVP_PKEY_copy_parameters(pktmp, pkey);
-    EVP_PKEY_free(pktmp);
-    ERR_clear_error();
-
     /* Sanity-check that the private key and the certificate match, unless the
      * key is opaque (in case of, say, a smartcard). */
     if (!EVP_PKEY_is_opaque(pkey) &&
@@ -198,10 +179,8 @@ static int ssl_set_pkey(CERT *c, EVP_PKEY *pkey) {
     }
   }
 
-  if (c->pkeys[i].privatekey != NULL) {
-    EVP_PKEY_free(c->pkeys[i].privatekey);
-  }
-  c->pkeys[i].privatekey = EVP_PKEY_dup(pkey);
+  EVP_PKEY_free(c->pkeys[i].privatekey);
+  c->pkeys[i].privatekey = EVP_PKEY_up_ref(pkey);
   c->key = &(c->pkeys[i]);
 
   return 1;
@@ -244,9 +223,7 @@ int SSL_use_RSAPrivateKey_file(SSL *ssl, const char *file, int type) {
   RSA_free(rsa);
 
 end:
-  if (in != NULL) {
-    BIO_free(in);
-  }
+  BIO_free(in);
   return ret;
 }
 
@@ -272,11 +249,6 @@ int SSL_use_PrivateKey(SSL *ssl, EVP_PKEY *pkey) {
 
   if (pkey == NULL) {
     OPENSSL_PUT_ERROR(SSL, SSL_use_PrivateKey, ERR_R_PASSED_NULL_PARAMETER);
-    return 0;
-  }
-
-  if (!ssl_cert_inst(&ssl->cert)) {
-    OPENSSL_PUT_ERROR(SSL, SSL_use_PrivateKey, ERR_R_MALLOC_FAILURE);
     return 0;
   }
 
@@ -320,9 +292,7 @@ int SSL_use_PrivateKey_file(SSL *ssl, const char *file, int type) {
   EVP_PKEY_free(pkey);
 
 end:
-  if (in != NULL) {
-    BIO_free(in);
-  }
+  BIO_free(in);
   return ret;
 }
 
@@ -349,10 +319,6 @@ int SSL_CTX_use_certificate(SSL_CTX *ctx, X509 *x) {
                       ERR_R_PASSED_NULL_PARAMETER);
     return 0;
   }
-  if (!ssl_cert_inst(&ctx->cert)) {
-    OPENSSL_PUT_ERROR(SSL, SSL_CTX_use_certificate, ERR_R_MALLOC_FAILURE);
-    return 0;
-  }
 
   return ssl_set_cert(ctx->cert, x);
 }
@@ -375,9 +341,6 @@ static int ssl_set_cert(CERT *c, X509 *x) {
   }
 
   if (c->pkeys[i].privatekey != NULL) {
-    EVP_PKEY_copy_parameters(pkey, c->pkeys[i].privatekey);
-    ERR_clear_error();
-
     /* Sanity-check that the private key and the certificate match, unless the
      * key is opaque (in case of, say, a smartcard). */
     if (!EVP_PKEY_is_opaque(c->pkeys[i].privatekey) &&
@@ -394,9 +357,7 @@ static int ssl_set_cert(CERT *c, X509 *x) {
 
   EVP_PKEY_free(pkey);
 
-  if (c->pkeys[i].x509 != NULL) {
-    X509_free(c->pkeys[i].x509);
-  }
+  X509_free(c->pkeys[i].x509);
   c->pkeys[i].x509 = X509_up_ref(x);
   c->key = &(c->pkeys[i]);
 
@@ -441,12 +402,8 @@ int SSL_CTX_use_certificate_file(SSL_CTX *ctx, const char *file, int type) {
   ret = SSL_CTX_use_certificate(ctx, x);
 
 end:
-  if (x != NULL) {
-    X509_free(x);
-  }
-  if (in != NULL) {
-    BIO_free(in);
-  }
+  X509_free(x);
+  BIO_free(in);
   return ret;
 }
 
@@ -472,11 +429,6 @@ int SSL_CTX_use_RSAPrivateKey(SSL_CTX *ctx, RSA *rsa) {
   if (rsa == NULL) {
     OPENSSL_PUT_ERROR(SSL, SSL_CTX_use_RSAPrivateKey,
                       ERR_R_PASSED_NULL_PARAMETER);
-    return 0;
-  }
-
-  if (!ssl_cert_inst(&ctx->cert)) {
-    OPENSSL_PUT_ERROR(SSL, SSL_CTX_use_RSAPrivateKey, ERR_R_MALLOC_FAILURE);
     return 0;
   }
 
@@ -531,9 +483,7 @@ int SSL_CTX_use_RSAPrivateKey_file(SSL_CTX *ctx, const char *file, int type) {
   RSA_free(rsa);
 
 end:
-  if (in != NULL) {
-    BIO_free(in);
-  }
+  BIO_free(in);
   return ret;
 }
 
@@ -557,11 +507,6 @@ int SSL_CTX_use_RSAPrivateKey_ASN1(SSL_CTX *ctx, const uint8_t *d, long len) {
 int SSL_CTX_use_PrivateKey(SSL_CTX *ctx, EVP_PKEY *pkey) {
   if (pkey == NULL) {
     OPENSSL_PUT_ERROR(SSL, SSL_CTX_use_PrivateKey, ERR_R_PASSED_NULL_PARAMETER);
-    return 0;
-  }
-
-  if (!ssl_cert_inst(&ctx->cert)) {
-    OPENSSL_PUT_ERROR(SSL, SSL_CTX_use_PrivateKey, ERR_R_MALLOC_FAILURE);
     return 0;
   }
 
@@ -604,9 +549,7 @@ int SSL_CTX_use_PrivateKey_file(SSL_CTX *ctx, const char *file, int type) {
   EVP_PKEY_free(pkey);
 
 end:
-  if (in != NULL) {
-    BIO_free(in);
-  }
+  BIO_free(in);
   return ret;
 }
 
@@ -668,7 +611,7 @@ int SSL_CTX_use_certificate_chain_file(SSL_CTX *ctx, const char *file) {
      * certificates. */
     X509 *ca;
     int r;
-    unsigned long err;
+    uint32_t err;
 
     SSL_CTX_clear_chain_certs(ctx);
 
@@ -697,11 +640,7 @@ int SSL_CTX_use_certificate_chain_file(SSL_CTX *ctx, const char *file) {
   }
 
 end:
-  if (x != NULL) {
-    X509_free(x);
-  }
-  if (in != NULL) {
-    BIO_free(in);
-  }
+  X509_free(x);
+  BIO_free(in);
   return ret;
 }

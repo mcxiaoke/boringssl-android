@@ -83,7 +83,7 @@
  */
 
 #include <stdio.h>
-#include "ssl_locl.h"
+#include "internal.h"
 
 const char *SSL_state_string_long(const SSL *s) {
   const char *str;
@@ -380,14 +380,6 @@ const char *SSL_state_string_long(const SSL *s) {
 
     case DTLS1_ST_CR_HELLO_VERIFY_REQUEST_B:
       str = "DTLS1 read hello verify request B";
-      break;
-
-    case DTLS1_ST_SW_HELLO_VERIFY_REQUEST_A:
-      str = "DTLS1 write hello verify request A";
-      break;
-
-    case DTLS1_ST_SW_HELLO_VERIFY_REQUEST_B:
-      str = "DTLS1 write hello verify request B";
       break;
 
     default:
@@ -689,14 +681,6 @@ const char *SSL_state_string(const SSL *s) {
 
     case DTLS1_ST_CR_HELLO_VERIFY_REQUEST_B:
       str = "DRCHVB";
-      break;
-
-    case DTLS1_ST_SW_HELLO_VERIFY_REQUEST_A:
-      str = "DWCHVA";
-      break;
-
-    case DTLS1_ST_SW_HELLO_VERIFY_REQUEST_B:
-      str = "DWCHVB";
       break;
 
     default:

@@ -17,7 +17,10 @@
 
 #include <openssl/base.h>
 
+/* Upstream OpenSSL defines |OPENSSL_malloc|, etc., in crypto.h rather than
+ * mem.h. */
 #include <openssl/mem.h>
+
 
 #if defined(__cplusplus)
 extern "C" {
@@ -31,6 +34,9 @@ extern "C" {
  * library is built with BORINGSSL_NO_STATIC_INITIALIZER. Otherwise, it does
  * nothing and a static initializer is used instead. */
 OPENSSL_EXPORT void CRYPTO_library_init(void);
+
+
+/* Deprecated functions. */
 
 #define OPENSSL_VERSION_TEXT "BoringSSL"
 
@@ -48,9 +54,9 @@ OPENSSL_EXPORT const char *SSLeay(void);
 }  /* extern C */
 #endif
 
-#define CRYPTO_F_CRYPTO_set_ex_data 100
-#define CRYPTO_F_get_class 101
-#define CRYPTO_F_get_new_index 102
+#define CRYPTO_F_CRYPTO_get_ex_new_index 100
+#define CRYPTO_F_CRYPTO_set_ex_data 101
+#define CRYPTO_F_get_class 102
 #define CRYPTO_F_get_func_pointers 103
 
 #endif  /* OPENSSL_HEADER_CRYPTO_H */

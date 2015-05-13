@@ -41,7 +41,6 @@ add_library(
   v3_skey.c
   v3_sxnet.c
   v3_utl.c
-  x509v3_error.c
 )
 
 add_executable(
@@ -50,11 +49,12 @@ add_executable(
   v3nametest.c
 )
 
+target_link_libraries(v3name_test crypto)
+
 add_executable(
   tab_test
 
   tabtest.c
 )
 
-target_link_libraries(v3name_test crypto)
 target_link_libraries(tab_test crypto)

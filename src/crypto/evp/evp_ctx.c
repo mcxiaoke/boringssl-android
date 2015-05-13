@@ -120,14 +120,12 @@ static EVP_PKEY_CTX *evp_pkey_ctx_new(EVP_PKEY *pkey, ENGINE *e, int id) {
   ret->operation = EVP_PKEY_OP_UNDEFINED;
 
   if (pkey) {
-    ret->pkey = EVP_PKEY_dup(pkey);
+    ret->pkey = EVP_PKEY_up_ref(pkey);
   }
 
   if (pmeth->init) {
     if (pmeth->init(ret) <= 0) {
-      if (pkey) {
-        EVP_PKEY_free(ret->pkey);
-      }
+      EVP_PKEY_free(ret->pkey);
       OPENSSL_free(ret);
       return NULL;
     }
@@ -151,12 +149,8 @@ void EVP_PKEY_CTX_free(EVP_PKEY_CTX *ctx) {
   if (ctx->pmeth && ctx->pmeth->cleanup) {
     ctx->pmeth->cleanup(ctx);
   }
-  if (ctx->pkey) {
-    EVP_PKEY_free(ctx->pkey);
-  }
-  if (ctx->peerkey) {
-    EVP_PKEY_free(ctx->peerkey);
-  }
+  EVP_PKEY_free(ctx->pkey);
+  EVP_PKEY_free(ctx->peerkey);
   OPENSSL_free(ctx);
 }
 
@@ -179,14 +173,14 @@ EVP_PKEY_CTX *EVP_PKEY_CTX_dup(EVP_PKEY_CTX *pctx) {
   rctx->operation = pctx->operation;
 
   if (pctx->pkey) {
-    rctx->pkey = EVP_PKEY_dup(pctx->pkey);
+    rctx->pkey = EVP_PKEY_up_ref(pctx->pkey);
     if (rctx->pkey == NULL) {
       goto err;
     }
   }
 
   if (pctx->peerkey) {
-    rctx->peerkey = EVP_PKEY_dup(pctx->peerkey);
+    rctx->peerkey = EVP_PKEY_up_ref(pctx->peerkey);
     if (rctx->peerkey == NULL) {
       goto err;
     }
@@ -212,32 +206,25 @@ void *EVP_PKEY_CTX_get_app_data(EVP_PKEY_CTX *ctx) { return ctx->app_data; }
 
 int EVP_PKEY_CTX_ctrl(EVP_PKEY_CTX *ctx, int keytype, int optype, int cmd,
                       int p1, void *p2) {
-  int ret;
   if (!ctx || !ctx->pmeth || !ctx->pmeth->ctrl) {
     OPENSSL_PUT_ERROR(EVP, EVP_PKEY_CTX_ctrl, EVP_R_COMMAND_NOT_SUPPORTED);
-    return -2;
+    return 0;
   }
   if (keytype != -1 && ctx->pmeth->pkey_id != keytype) {
-    return -1;
+    return 0;
   }
 
   if (ctx->operation == EVP_PKEY_OP_UNDEFINED) {
     OPENSSL_PUT_ERROR(EVP, EVP_PKEY_CTX_ctrl, EVP_R_NO_OPERATION_SET);
-    return -1;
+    return 0;
   }
 
   if (optype != -1 && !(ctx->operation & optype)) {
     OPENSSL_PUT_ERROR(EVP, EVP_PKEY_CTX_ctrl, EVP_R_INVALID_OPERATION);
-    return -1;
+    return 0;
   }
 
-  ret = ctx->pmeth->ctrl(ctx, cmd, p1, p2);
-
-  if (ret == -2) {
-    OPENSSL_PUT_ERROR(EVP, EVP_PKEY_CTX_ctrl, EVP_R_COMMAND_NOT_SUPPORTED);
-  }
-
-  return ret;
+  return ctx->pmeth->ctrl(ctx, cmd, p1, p2);
 }
 
 int EVP_PKEY_sign_init(EVP_PKEY_CTX *ctx) {
@@ -434,9 +421,7 @@ int EVP_PKEY_derive_set_peer(EVP_PKEY_CTX *ctx, EVP_PKEY *peer) {
     return 0;
   }
 
-  if (ctx->peerkey) {
-    EVP_PKEY_free(ctx->peerkey);
-  }
+  EVP_PKEY_free(ctx->peerkey);
   ctx->peerkey = peer;
 
   ret = ctx->pmeth->ctrl(ctx, EVP_PKEY_CTRL_PEER_KEY, 1, peer);
@@ -446,7 +431,7 @@ int EVP_PKEY_derive_set_peer(EVP_PKEY_CTX *ctx, EVP_PKEY *peer) {
     return 0;
   }
 
-  EVP_PKEY_dup(peer);
+  EVP_PKEY_up_ref(peer);
   return 1;
 }
 
