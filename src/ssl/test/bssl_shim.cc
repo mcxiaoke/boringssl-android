@@ -406,14 +406,6 @@ static ScopedSSL_CTX SetupCtx(const TestConfig *config) {
     return nullptr;
   }
 
-  if (config->is_dtls) {
-    // DTLS needs read-ahead to function on a datagram BIO.
-    //
-    // TODO(davidben): this should not be necessary. DTLS code should only
-    // expect a datagram BIO.
-    SSL_CTX_set_read_ahead(ssl_ctx.get(), 1);
-  }
-
   if (!SSL_CTX_set_cipher_list(ssl_ctx.get(), "ALL")) {
     return nullptr;
   }
@@ -599,6 +591,9 @@ static bool DoExchange(ScopedSSL_SESSION *out_session, SSL_CTX *ssl_ctx,
   if (config->allow_unsafe_legacy_renegotiation) {
     SSL_set_options(ssl.get(), SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION);
   }
+  if (config->no_legacy_server_connect) {
+    SSL_clear_options(ssl.get(), SSL_OP_LEGACY_SERVER_CONNECT);
+  }
   if (!config->expected_channel_id.empty()) {
     SSL_enable_tls_channel_id(ssl.get());
   }
@@ -660,8 +655,9 @@ static bool DoExchange(ScopedSSL_SESSION *out_session, SSL_CTX *ssl_ctx,
       !SSL_set_cipher_list(ssl.get(), config->cipher.c_str())) {
     return false;
   }
-  if (config->reject_peer_renegotiations) {
-    SSL_set_reject_peer_renegotiations(ssl.get(), 1);
+  if (!config->reject_peer_renegotiations) {
+    /* Renegotiations are disabled by default. */
+    SSL_set_reject_peer_renegotiations(ssl.get(), 0);
   }
 
   int sock = Connect(config->port);
@@ -703,6 +699,11 @@ static bool DoExchange(ScopedSSL_SESSION *out_session, SSL_CTX *ssl_ctx,
     }
   }
 
+  if (SSL_get_current_cipher(ssl.get()) != nullptr) {
+    fprintf(stderr, "non-null cipher before handshake\n");
+    return false;
+  }
+
   int ret;
   if (config->implicit_handshake) {
     if (config->is_server) {
@@ -719,6 +720,11 @@ static bool DoExchange(ScopedSSL_SESSION *out_session, SSL_CTX *ssl_ctx,
       }
     } while (config->async && RetryAsync(ssl.get(), ret));
     if (ret != 1) {
+      return false;
+    }
+
+    if (SSL_get_current_cipher(ssl.get()) == nullptr) {
+      fprintf(stderr, "null cipher after handshake\n");
       return false;
     }
 
@@ -834,30 +840,6 @@ static bool DoExchange(ScopedSSL_SESSION *out_session, SSL_CTX *ssl_ctx,
     }
   }
 
-  if (config->renegotiate) {
-    if (config->async) {
-      fprintf(stderr, "-renegotiate is not supported with -async.\n");
-      return false;
-    }
-    if (config->implicit_handshake) {
-      fprintf(stderr, "-renegotiate is not supported with -implicit-handshake.\n");
-      return false;
-    }
-
-    SSL_renegotiate(ssl.get());
-
-    ret = SSL_do_handshake(ssl.get());
-    if (ret != 1) {
-      return false;
-    }
-
-    SSL_set_state(ssl.get(), SSL_ST_ACCEPT);
-    ret = SSL_do_handshake(ssl.get());
-    if (ret != 1) {
-      return false;
-    }
-  }
-
   if (config->export_keying_material > 0) {
     std::vector<uint8_t> result(
         static_cast<size_t>(config->export_keying_material));
@@ -870,6 +852,26 @@ static bool DoExchange(ScopedSSL_SESSION *out_session, SSL_CTX *ssl_ctx,
       return false;
     }
     if (WriteAll(ssl.get(), result.data(), result.size()) < 0) {
+      return false;
+    }
+  }
+
+  if (config->tls_unique) {
+    uint8_t tls_unique[16];
+    size_t tls_unique_len;
+    if (!SSL_get_tls_unique(ssl.get(), tls_unique, &tls_unique_len,
+                            sizeof(tls_unique))) {
+      fprintf(stderr, "failed to get tls-unique\n");
+      return false;
+    }
+
+    if (tls_unique_len != 12) {
+      fprintf(stderr, "expected 12 bytes of tls-unique but got %u",
+              static_cast<unsigned>(tls_unique_len));
+      return false;
+    }
+
+    if (WriteAll(ssl.get(), tls_unique, tls_unique_len) < 0) {
       return false;
     }
   }

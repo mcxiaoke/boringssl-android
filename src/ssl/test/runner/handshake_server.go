@@ -69,7 +69,7 @@ func (c *Conn) serverHandshake() error {
 				return err
 			}
 		}
-		if err := hs.sendFinished(); err != nil {
+		if err := hs.sendFinished(c.firstFinished[:]); err != nil {
 			return err
 		}
 		// Most retransmits are triggered by a timeout, but the final
@@ -81,7 +81,7 @@ func (c *Conn) serverHandshake() error {
 		}); err != nil {
 			return err
 		}
-		if err := hs.readFinished(isResume); err != nil {
+		if err := hs.readFinished(nil, isResume); err != nil {
 			return err
 		}
 		c.didResume = true
@@ -94,7 +94,7 @@ func (c *Conn) serverHandshake() error {
 		if err := hs.establishKeys(); err != nil {
 			return err
 		}
-		if err := hs.readFinished(isResume); err != nil {
+		if err := hs.readFinished(c.firstFinished[:], isResume); err != nil {
 			return err
 		}
 		if c.config.Bugs.AlertBeforeFalseStartTest != 0 {
@@ -108,7 +108,7 @@ func (c *Conn) serverHandshake() error {
 		if err := hs.sendSessionTicket(); err != nil {
 			return err
 		}
-		if err := hs.sendFinished(); err != nil {
+		if err := hs.sendFinished(nil); err != nil {
 			return err
 		}
 	}
@@ -274,6 +274,10 @@ Curves:
 		hs.hello.secureRenegotiation = hs.clientHello.secureRenegotiation
 	}
 
+	if c.config.Bugs.NoRenegotiationInfo {
+		hs.hello.secureRenegotiation = nil
+	}
+
 	hs.hello.compressionMethod = compressionNone
 	hs.hello.duplicateExtension = c.config.Bugs.DuplicateExtension
 	if len(hs.clientHello.serverName) > 0 {
@@ -333,6 +337,12 @@ Curves:
 
 	_, hs.ecdsaOk = hs.cert.PrivateKey.(*ecdsa.PrivateKey)
 
+	// For test purposes, check that the peer never offers a session when
+	// renegotiating.
+	if c.cipherSuite != nil && len(hs.clientHello.sessionId) > 0 && c.config.Bugs.FailIfResumeOnRenego {
+		return false, errors.New("tls: offered resumption on renegotiation")
+	}
+
 	if hs.checkForResumption() {
 		return true, nil
 	}
@@ -381,10 +391,6 @@ Curves:
 // checkForResumption returns true if we should perform resumption on this connection.
 func (hs *serverHandshakeState) checkForResumption() bool {
 	c := hs.c
-
-	if c.config.Bugs.NeverResumeOnRenego && c.cipherSuite != nil {
-		return false
-	}
 
 	if len(hs.clientHello.sessionTicket) > 0 {
 		if c.config.SessionTicketsDisabled {
@@ -748,7 +754,7 @@ func (hs *serverHandshakeState) establishKeys() error {
 	return nil
 }
 
-func (hs *serverHandshakeState) readFinished(isResume bool) error {
+func (hs *serverHandshakeState) readFinished(out []byte, isResume bool) error {
 	c := hs.c
 
 	c.readRecord(recordTypeChangeCipherSpec)
@@ -817,6 +823,7 @@ func (hs *serverHandshakeState) readFinished(isResume bool) error {
 		return errors.New("tls: client's Finished message is incorrect")
 	}
 	c.clientVerify = append(c.clientVerify[:0], clientFinished.verifyData...)
+	copy(out, clientFinished.verifyData)
 
 	hs.writeClientHash(clientFinished.marshal())
 	return nil
@@ -853,11 +860,12 @@ func (hs *serverHandshakeState) sendSessionTicket() error {
 	return nil
 }
 
-func (hs *serverHandshakeState) sendFinished() error {
+func (hs *serverHandshakeState) sendFinished(out []byte) error {
 	c := hs.c
 
 	finished := new(finishedMsg)
 	finished.verifyData = hs.finishedHash.serverSum(hs.masterSecret)
+	copy(out, finished.verifyData)
 	if c.config.Bugs.BadFinished {
 		finished.verifyData[0]++
 	}
