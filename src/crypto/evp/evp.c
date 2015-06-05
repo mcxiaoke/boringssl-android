@@ -70,6 +70,7 @@
 #include <openssl/thread.h>
 
 #include "internal.h"
+#include "../internal.h"
 
 
 extern const EVP_PKEY_ASN1_METHOD dsa_asn1_meth;
@@ -106,7 +107,7 @@ void EVP_PKEY_free(EVP_PKEY *pkey) {
     return;
   }
 
-  if (CRYPTO_add(&pkey->references, -1, CRYPTO_LOCK_EVP_PKEY)) {
+  if (!CRYPTO_refcount_dec_and_test_zero(&pkey->references)) {
     return;
   }
 
@@ -115,7 +116,7 @@ void EVP_PKEY_free(EVP_PKEY *pkey) {
 }
 
 EVP_PKEY *EVP_PKEY_up_ref(EVP_PKEY *pkey) {
-  CRYPTO_add(&pkey->references, 1, CRYPTO_LOCK_EVP_PKEY);
+  CRYPTO_refcount_inc(&pkey->references);
   return pkey;
 }
 
@@ -440,5 +441,9 @@ EVP_PKEY *EVP_PKEY_dup(EVP_PKEY *pkey) {
 }
 
 void OpenSSL_add_all_algorithms(void) {}
+
+void OpenSSL_add_all_ciphers(void) {}
+
+void OpenSSL_add_all_digests(void) {}
 
 void EVP_cleanup(void) {}

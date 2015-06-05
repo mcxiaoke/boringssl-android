@@ -53,11 +53,6 @@ BIGNUM *get_rfc3526_prime_1536(BIGNUM *bn) {
   return BN_bin2bn(data, sizeof(data), NULL);
 }
 
-void ERR_remove_state(unsigned long pid) {
-  assert(pid == 0);
-  ERR_remove_thread_state(NULL);
-}
-
 int SSL_set_session_ticket_ext(SSL *s, void *ext_data, int ext_len) {
   return 0;
 }

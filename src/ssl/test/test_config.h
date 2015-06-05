@@ -54,7 +54,6 @@ struct TestConfig {
   bool expect_extended_master_secret = false;
   std::string psk;
   std::string psk_identity;
-  bool renegotiate = false;
   bool allow_unsafe_legacy_renegotiation = false;
   std::string srtp_profiles;
   bool enable_ocsp_stapling = false;
@@ -78,6 +77,8 @@ struct TestConfig {
   std::string export_context;
   bool use_export_context = false;
   bool reject_peer_renegotiations = false;
+  bool no_legacy_server_connect = false;
+  bool tls_unique = false;
 };
 
 bool ParseConfig(int argc, char **argv, TestConfig *out_config);

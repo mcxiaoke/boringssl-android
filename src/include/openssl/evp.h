@@ -59,6 +59,8 @@
 
 #include <openssl/base.h>
 
+#include <openssl/thread.h>
+
 /* OpenSSL included digest and cipher functions in this header so we include
  * them for users that still expect that.
  *
@@ -239,8 +241,7 @@ OPENSSL_EXPORT int EVP_DigestSignInit(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx,
                                       EVP_PKEY *pkey);
 
 /* EVP_DigestSignUpdate appends |len| bytes from |data| to the data which will
- * be signed in |EVP_DigestSignFinal|. It returns one on success and zero
- * otherwise. */
+ * be signed in |EVP_DigestSignFinal|. It returns one. */
 OPENSSL_EXPORT int EVP_DigestSignUpdate(EVP_MD_CTX *ctx, const void *data,
                                         size_t len);
 
@@ -291,8 +292,7 @@ OPENSSL_EXPORT int EVP_DigestVerifyInitFromAlgorithm(EVP_MD_CTX *ctx,
                                                      EVP_PKEY *pkey);
 
 /* EVP_DigestVerifyUpdate appends |len| bytes from |data| to the data which
- * will be verified by |EVP_DigestVerifyFinal|. It returns one on success and
- * zero otherwise. */
+ * will be verified by |EVP_DigestVerifyFinal|. It returns one. */
 OPENSSL_EXPORT int EVP_DigestVerifyUpdate(EVP_MD_CTX *ctx, const void *data,
                                           size_t len);
 
@@ -664,6 +664,12 @@ OPENSSL_EXPORT EVP_PKEY *EVP_PKEY_dup(EVP_PKEY *pkey);
 /* OpenSSL_add_all_algorithms does nothing. */
 OPENSSL_EXPORT void OpenSSL_add_all_algorithms(void);
 
+/* OpenSSL_add_all_ciphers does nothing. */
+OPENSSL_EXPORT void OpenSSL_add_all_ciphers(void);
+
+/* OpenSSL_add_all_digests does nothing. */
+OPENSSL_EXPORT void OpenSSL_add_all_digests(void);
+
 /* EVP_cleanup does nothing. */
 OPENSSL_EXPORT void EVP_cleanup(void);
 
@@ -678,7 +684,7 @@ OPENSSL_EXPORT const EVP_PKEY_ASN1_METHOD *EVP_PKEY_asn1_find_str(
     ENGINE **pengine, const char *name, size_t len);
 
 struct evp_pkey_st {
-  int references;
+  CRYPTO_refcount_t references;
 
   /* type contains one of the EVP_PKEY_* values or NID_undef and determines
    * which element (if any) of the |pkey| union is valid. */

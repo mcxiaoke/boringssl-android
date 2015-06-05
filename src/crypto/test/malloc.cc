@@ -15,17 +15,23 @@
 #include <openssl/base.h>
 
 #if defined(__has_feature)
-#if __has_feature(address_sanitizer)
+#if __has_feature(address_sanitizer) || __has_feature(memory_sanitizer)
 #define OPENSSL_ASAN
 #endif
 #endif
 
+#if defined(__GLIBC__) && !defined(__UCLIBC__)
+#define OPENSSL_GLIBC
+#endif
+
 // This file isn't built on ARM or Aarch64 because we link statically in those
-// builds and trying to override malloc in a static link doesn't work. It's also
-// disabled on ASan builds as this interferes with ASan's malloc interceptor.
+// builds and trying to override malloc in a static link doesn't work. It also
+// requires glibc. It's also disabled on ASan builds as this interferes with
+// ASan's malloc interceptor.
 //
-// TODO(davidben): See if this and ASan's interceptors can be made to coexist.
-#if defined(__linux__) && !defined(OPENSSL_ARM) && \
+// TODO(davidben): See if this and ASan's and MSan's interceptors can be made to
+// coexist.
+#if defined(__linux__) && defined(OPENSSL_GLIBC) && !defined(OPENSSL_ARM) && \
     !defined(OPENSSL_AARCH64) && !defined(OPENSSL_ASAN)
 
 #include <stdint.h>
@@ -136,4 +142,4 @@ void *realloc(void *ptr, size_t size) {
 
 }  // extern "C"
 
-#endif  /* defined(linux) && !ARM && !AARCH64 && !ASAN */
+#endif  /* defined(linux) && GLIBC && !ARM && !AARCH64 && !ASAN */
