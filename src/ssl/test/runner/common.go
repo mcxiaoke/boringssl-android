@@ -188,6 +188,7 @@ type ConnectionState struct {
 	VerifiedChains             [][]*x509.Certificate // verified chains built from PeerCertificates
 	ChannelID                  *ecdsa.PublicKey      // the channel ID for this connection
 	SRTPProtectionProfile      uint16                // the negotiated DTLS-SRTP protection profile
+	TLSUnique                  []byte
 }
 
 // ClientAuthType declares the policy the server will follow for
@@ -478,7 +479,9 @@ type ProtocolBugs struct {
 	// MaxHandshakeRecordLength, if non-zero, is the maximum size of a
 	// handshake record. Handshake messages will be split into multiple
 	// records at the specified size, except that the client_version will
-	// never be fragmented.
+	// never be fragmented. For DTLS, it is the maximum handshake fragment
+	// size, not record size; DTLS allows multiple handshake fragments in a
+	// single handshake record. See |PackHandshakeFragments|.
 	MaxHandshakeRecordLength int
 
 	// FragmentClientVersion will allow MaxHandshakeRecordLength to apply to
@@ -681,13 +684,14 @@ type ProtocolBugs struct {
 	// fragments in DTLS.
 	SendEmptyFragments bool
 
-	// NeverResumeOnRenego, if true, causes renegotiations to always be full
-	// handshakes.
-	NeverResumeOnRenego bool
+	// SendSplitAlert, if true, causes an alert to be sent with the header
+	// and record body split across multiple packets. The peer should
+	// discard these packets rather than process it.
+	SendSplitAlert bool
 
-	// NoSignatureAlgorithmsOnRenego, if true, causes renegotiations to omit
-	// the signature_algorithms extension.
-	NoSignatureAlgorithmsOnRenego bool
+	// FailIfResumeOnRenego, if true, causes renegotiations to fail if the
+	// client offers a resumption or the server accepts one.
+	FailIfResumeOnRenego bool
 
 	// IgnorePeerCipherPreferences, if true, causes the peer's cipher
 	// preferences to be ignored.
@@ -707,6 +711,22 @@ type ProtocolBugs struct {
 
 	// BadFinished, if true, causes the Finished hash to be broken.
 	BadFinished bool
+
+	// DHGroupPrime, if not nil, is used to define the (finite field)
+	// Diffie-Hellman group. The generator used is always two.
+	DHGroupPrime *big.Int
+
+	// PackHandshakeFragments, if true, causes handshake fragments to be
+	// packed into individual handshake records, up to the specified record
+	// size.
+	PackHandshakeFragments int
+
+	// PackHandshakeRecords, if true, causes handshake records to be packed
+	// into individual packets, up to the specified packet size.
+	PackHandshakeRecords int
+
+	// EnableAllCiphersInDTLS, if true, causes RC4 to be enabled in DTLS.
+	EnableAllCiphersInDTLS bool
 }
 
 func (c *Config) serverInit() {

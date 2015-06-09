@@ -477,13 +477,17 @@ SSL_SESSION *d2i_SSL_SESSION(SSL_SESSION **a, const uint8_t **pp, long length) {
   }
   if (!CBS_get_optional_asn1_bool(&session, &extended_master_secret,
                                   kExtendedMasterSecretTag,
-                                  0 /* default to false */)) {
+                                  0 /* default to false */) ||
+      CBS_len(&session) != 0) {
     OPENSSL_PUT_ERROR(SSL, d2i_SSL_SESSION, SSL_R_INVALID_SSL_SESSION);
     goto err;
   }
   ret->extended_master_secret = extended_master_secret;
 
-  /* Ignore |version|. The structure version number is ignored. */
+  if (version != SSL_SESSION_ASN1_VERSION) {
+    OPENSSL_PUT_ERROR(SSL, d2i_SSL_SESSION, SSL_R_INVALID_SSL_SESSION);
+    goto err;
+  }
 
   /* Only support SSLv3/TLS and DTLS. */
   if ((ssl_version >> 8) != SSL3_VERSION_MAJOR &&
@@ -498,7 +502,7 @@ SSL_SESSION *d2i_SSL_SESSION(SSL_SESSION **a, const uint8_t **pp, long length) {
     OPENSSL_PUT_ERROR(SSL, d2i_SSL_SESSION, SSL_R_CIPHER_CODE_WRONG_LENGTH);
     goto err;
   }
-  ret->cipher = ssl3_get_cipher_by_value(cipher_value);
+  ret->cipher = SSL_get_cipher_by_value(cipher_value);
   if (ret->cipher == NULL) {
     OPENSSL_PUT_ERROR(SSL, d2i_SSL_SESSION, SSL_R_UNSUPPORTED_CIPHER);
     goto err;

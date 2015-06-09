@@ -195,8 +195,8 @@ int ssl3_send_finished(SSL *s, int a, int b, const char *sender, int slen) {
   return ssl_do_write(s);
 }
 
-/* ssl3_take_mac calculates the Finished MAC for the handshakes messages seen to
- * far. */
+/* ssl3_take_mac calculates the Finished MAC for the handshakes messages seen
+ * so far. */
 static void ssl3_take_mac(SSL *s) {
   const char *sender;
   int slen;
@@ -357,8 +357,8 @@ long ssl3_get_message(SSL *s, int header_state, int body_state, int msg_type,
 
     for (;;) {
       while (s->init_num < 4) {
-        int bytes_read = s->method->ssl_read_bytes(
-            s, SSL3_RT_HANDSHAKE, &p[s->init_num], 4 - s->init_num, 0);
+        int bytes_read = ssl3_read_bytes(s, SSL3_RT_HANDSHAKE, &p[s->init_num],
+                                         4 - s->init_num, 0);
         if (bytes_read <= 0) {
           *ok = 0;
           return bytes_read;
@@ -413,8 +413,8 @@ long ssl3_get_message(SSL *s, int header_state, int body_state, int msg_type,
   p = s->init_msg;
   n = s->s3->tmp.message_size - s->init_num;
   while (n > 0) {
-    int bytes_read =
-        s->method->ssl_read_bytes(s, SSL3_RT_HANDSHAKE, &p[s->init_num], n, 0);
+    int bytes_read = ssl3_read_bytes(s, SSL3_RT_HANDSHAKE, &p[s->init_num], n,
+                                     0);
     if (bytes_read <= 0) {
       s->rwstate = SSL_READING;
       *ok = 0;
@@ -667,20 +667,10 @@ int ssl3_release_read_buffer(SSL *s) {
   return 1;
 }
 
-/* ssl_fill_hello_random fills a client_random or server_random field of length
- * |len|. Returns 0 on failure or 1 on success. */
-int ssl_fill_hello_random(SSL *s, int server, uint8_t *result, size_t len) {
-  int send_time = 0;
-
-  if (server) {
-    send_time = (s->mode & SSL_MODE_SEND_SERVERHELLO_TIME) != 0;
-  } else {
-    send_time = (s->mode & SSL_MODE_SEND_CLIENTHELLO_TIME) != 0;
-  }
-
-  if (send_time) {
+int ssl_fill_hello_random(uint8_t *out, size_t len, int is_server) {
+  if (is_server) {
     const uint32_t current_time = time(NULL);
-    uint8_t *p = result;
+    uint8_t *p = out;
 
     if (len < 4) {
       return 0;
@@ -691,6 +681,6 @@ int ssl_fill_hello_random(SSL *s, int server, uint8_t *result, size_t len) {
     p[3] = current_time;
     return RAND_bytes(p + 4, len - 4);
   } else {
-    return RAND_bytes(result, len);
+    return RAND_bytes(out, len);
   }
 }

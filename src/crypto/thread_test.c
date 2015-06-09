@@ -22,7 +22,7 @@
 #if defined(OPENSSL_WINDOWS)
 
 #pragma warning(push, 3)
-#include <windows.h>
+#include <Windows.h>
 #pragma warning(pop)
 
 typedef HANDLE thread_t;
