@@ -289,6 +289,12 @@ EC_GROUP *EC_GROUP_new_curve_GFp(const BIGNUM *p, const BIGNUM *a,
 
 int EC_GROUP_set_generator(EC_GROUP *group, const EC_POINT *generator,
                            const BIGNUM *order, const BIGNUM *cofactor) {
+  if (group->curve_name != NID_undef) {
+    /* |EC_GROUP_set_generator| should only be used with |EC_GROUP|s returned
+     * by |EC_GROUP_new_curve_GFp|. */
+    return 0;
+  }
+
   if (group->generator == NULL) {
     group->generator = EC_POINT_new(group);
     if (group->generator == NULL) {

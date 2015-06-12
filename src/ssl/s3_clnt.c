@@ -193,23 +193,9 @@ int ssl3_connect(SSL *s) {
     state = s->state;
 
     switch (s->state) {
-      case SSL_ST_RENEGOTIATE:
-        s->renegotiate = 1;
-        s->state = SSL_ST_CONNECT;
-        /* fallthrough */
       case SSL_ST_CONNECT:
-      case SSL_ST_BEFORE | SSL_ST_CONNECT:
         if (cb != NULL) {
           cb(s, SSL_CB_HANDSHAKE_START, 1);
-        }
-
-        if ((s->version >> 8) != 3) {
-          /* TODO(davidben): Some consumers clear |s->version| to break the
-           * handshake in a callback. Remove this when they're using proper
-           * APIs. */
-          OPENSSL_PUT_ERROR(SSL, ssl3_connect, ERR_R_INTERNAL_ERROR);
-          ret = -1;
-          goto end;
         }
 
         if (s->init_buf == NULL) {
@@ -457,7 +443,7 @@ int ssl3_connect(SSL *s) {
               ssl3_can_false_start(s) &&
               /* No False Start on renegotiation (would complicate the state
                * machine). */
-              s->s3->previous_server_finished_len == 0) {
+              !s->s3->initial_handshake_complete) {
             s->s3->tmp.next_state = SSL3_ST_FALSE_START;
           } else {
             /* Allow NewSessionTicket if ticket expected */
@@ -551,9 +537,8 @@ int ssl3_connect(SSL *s) {
         ssl_free_wbio_buffer(s);
 
         s->init_num = 0;
-        s->renegotiate = 0;
-        s->new_session = 0;
         s->s3->tmp.in_false_start = 0;
+        s->s3->initial_handshake_complete = 1;
 
         ssl_update_cache(s, SSL_SESS_CACHE_CLIENT);
 
@@ -625,7 +610,8 @@ int ssl3_send_client_hello(SSL *s) {
     /* If resending the ClientHello in DTLS after a HelloVerifyRequest, don't
      * renegerate the client_random. The random must be reused. */
     if ((!SSL_IS_DTLS(s) || !s->d1->send_cookie) &&
-        !ssl_fill_hello_random(s, 0, p, sizeof(s->s3->client_random))) {
+        !ssl_fill_hello_random(p, sizeof(s->s3->client_random),
+                               0 /* client */)) {
       goto err;
     }
 
@@ -666,7 +652,8 @@ int ssl3_send_client_hello(SSL *s) {
     p += SSL3_RANDOM_SIZE;
 
     /* Session ID */
-    if (s->new_session || s->session == NULL) {
+    if (s->s3->initial_handshake_complete || s->session == NULL) {
+      /* Renegotiations do not participate in session resumption. */
       i = 0;
     } else {
       i = s->session->session_id_length;
@@ -778,6 +765,7 @@ int ssl3_get_server_hello(SSL *s) {
     goto f_err;
   }
 
+  assert(s->s3->have_version == s->s3->initial_handshake_complete);
   if (!s->s3->have_version) {
     if (!ssl3_is_version_enabled(s, server_version)) {
       OPENSSL_PUT_ERROR(SSL, ssl3_get_server_hello, SSL_R_UNSUPPORTED_PROTOCOL);
@@ -804,8 +792,9 @@ int ssl3_get_server_hello(SSL *s) {
   memcpy(s->s3->server_random, CBS_data(&server_random), SSL3_RANDOM_SIZE);
 
   assert(s->session == NULL || s->session->session_id_length > 0);
-  if (s->session != NULL && CBS_mem_equal(&session_id, s->session->session_id,
-                                          s->session->session_id_length)) {
+  if (!s->s3->initial_handshake_complete && s->session != NULL &&
+      CBS_mem_equal(&session_id, s->session->session_id,
+                    s->session->session_id_length)) {
     if (s->sid_ctx_length != s->session->sid_ctx_length ||
         memcmp(s->session->sid_ctx, s->sid_ctx, s->sid_ctx_length)) {
       /* actually a client application bug */
@@ -827,7 +816,7 @@ int ssl3_get_server_hello(SSL *s) {
     memcpy(s->session->session_id, CBS_data(&session_id), CBS_len(&session_id));
   }
 
-  c = ssl3_get_cipher_by_value(cipher_suite);
+  c = SSL_get_cipher_by_value(cipher_suite);
   if (c == NULL) {
     /* unknown cipher */
     al = SSL_AD_ILLEGAL_PARAMETER;
@@ -876,9 +865,10 @@ int ssl3_get_server_hello(SSL *s) {
   }
   s->s3->tmp.new_cipher = c;
 
-  /* Don't digest cached records if no sigalgs: we may need them for client
-   * authentication. */
-  if (!SSL_USE_SIGALGS(s) &&
+  /* If doing a full handshake with TLS 1.2, the server may request a client
+   * certificate which requires hashing the handshake transcript under a
+   * different hash. Otherwise, release the handshake buffer. */
+  if ((!SSL_USE_SIGALGS(s) || s->hit) &&
       !ssl3_digest_cached_records(s, free_handshake_buffer)) {
     goto f_err;
   }
@@ -902,6 +892,19 @@ int ssl3_get_server_hello(SSL *s) {
     /* wrong packet length */
     al = SSL_AD_DECODE_ERROR;
     OPENSSL_PUT_ERROR(SSL, ssl3_get_server_hello, SSL_R_BAD_PACKET_LENGTH);
+    goto f_err;
+  }
+
+  if (s->hit &&
+      s->s3->tmp.extended_master_secret != s->session->extended_master_secret) {
+    al = SSL_AD_HANDSHAKE_FAILURE;
+    if (s->session->extended_master_secret) {
+      OPENSSL_PUT_ERROR(SSL, ssl3_get_server_hello,
+                        SSL_R_RESUMED_EMS_SESSION_WITHOUT_EMS_EXTENSION);
+    } else {
+      OPENSSL_PUT_ERROR(SSL, ssl3_get_server_hello,
+                        SSL_R_RESUMED_NON_EMS_SESSION_WITH_EMS_EXTENSION);
+    }
     goto f_err;
   }
 
@@ -1185,7 +1188,7 @@ int ssl3_get_server_key_exchange(SSL *s) {
       goto err;
     }
 
-    if (DH_size(dh) < 512 / 8) {
+    if (DH_num_bits(dh) < 1024) {
       OPENSSL_PUT_ERROR(SSL, ssl3_get_server_key_exchange,
                         SSL_R_BAD_DH_P_LENGTH);
       goto err;
@@ -2128,6 +2131,13 @@ int ssl3_send_client_certificate(SSL *s) {
         return 1;
       } else {
         s->s3->tmp.cert_req = 2;
+        /* There is no client certificate, so the handshake buffer may be
+         * released. */
+        if (s->s3->handshake_buffer &&
+            !ssl3_digest_cached_records(s, free_handshake_buffer)) {
+          ssl3_send_alert(s, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+          return -1;
+        }
       }
     }
 

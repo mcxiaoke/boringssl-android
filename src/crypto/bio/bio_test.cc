@@ -371,6 +371,9 @@ static bool TestASN1() {
                                          kLargePayloadLen & 0xff};
   ScopedOpenSSLBytes large(reinterpret_cast<uint8_t *>(
       OPENSSL_malloc(sizeof(kLargePrefix) + kLargePayloadLen)));
+  if (!large) {
+    return false;
+  }
   memset(large.get() + sizeof(kLargePrefix), 0, kLargePayloadLen);
   memcpy(large.get(), kLargePrefix, sizeof(kLargePrefix));
 

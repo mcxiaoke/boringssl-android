@@ -288,7 +288,11 @@ OPENSSL_EXPORT int EC_POINTs_mul(const EC_GROUP *group, EC_POINT *r,
 
 /* EC_GROUP_new_curve_GFp creates a new, arbitrary elliptic curve group based
  * on the equation y² = x³ + a·x + b. It returns the new group or NULL on
- * error. */
+ * error.
+ *
+ * |EC_GROUP|s returned by this function will always compare as unequal via
+ * |EC_GROUP_cmp| (even to themselves). |EC_GROUP_get_curve_name| will always
+ * return |NID_undef|. */
 OPENSSL_EXPORT EC_GROUP *EC_GROUP_new_curve_GFp(const BIGNUM *p,
                                                 const BIGNUM *a,
                                                 const BIGNUM *b, BN_CTX *ctx);
