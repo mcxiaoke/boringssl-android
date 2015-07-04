@@ -120,6 +120,23 @@ LOCAL_CFLAGS = -Wno-unused-parameter
 include $(LOCAL_PATH)/ssl-sources.mk
 include $(BUILD_HOST_STATIC_LIBRARY)
 
+# Host static tool (for linux only).
+ifeq ($(HOST_OS), linux)
+include $(CLEAR_VARS)
+LOCAL_CFLAGS += -Wall -Werror -std=c++0x
+LOCAL_CPP_EXTENSION := cc
+LOCAL_MODULE := bssl
+LOCAL_MODULE_TAGS := optional
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/sources.mk
+LOCAL_CFLAGS = -Wno-unused-parameter
+LOCAL_SHARED_LIBRARIES=libcrypto-host libssl-host
+# Needed for clock_gettime.
+LOCAL_LDFLAGS := -lrt
+include $(LOCAL_PATH)/sources.mk
+LOCAL_SRC_FILES = $(tool_sources)
+include $(BUILD_HOST_EXECUTABLE)
+endif  # HOST_OS == linux
+
 # Host shared library
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := optional
