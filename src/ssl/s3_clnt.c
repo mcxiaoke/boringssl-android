@@ -1028,10 +1028,8 @@ int ssl3_get_server_certificate(SSL *s) {
                       SSL_R_WRONG_CERTIFICATE_TYPE);
     goto f_err;
   }
-  sc->peer_cert_type = i;
-  X509_free(sc->peer_pkeys[i].x509);
-  sc->peer_pkeys[i].x509 = X509_up_ref(x);
-  sc->peer_key = &(sc->peer_pkeys[i]);
+  X509_free(sc->peer_cert);
+  sc->peer_cert = X509_up_ref(x);
 
   X509_free(s->session->peer);
   s->session->peer = X509_up_ref(x);
@@ -1195,8 +1193,7 @@ int ssl3_get_server_key_exchange(SSL *s) {
     }
 
     if (alg_a & SSL_aRSA) {
-      pkey = X509_get_pubkey(
-          s->session->sess_cert->peer_pkeys[SSL_PKEY_RSA_ENC].x509);
+      pkey = X509_get_pubkey(s->session->sess_cert->peer_cert);
     }
     /* else anonymous DH, so no certificate or pkey. */
 
@@ -1258,14 +1255,12 @@ int ssl3_get_server_key_exchange(SSL *s) {
     /* The ECC/TLS specification does not mention the use of DSA to sign
      * ECParameters in the server key exchange message. We do support RSA and
      * ECDSA. */
-    if (alg_a & SSL_aRSA) {
-      pkey = X509_get_pubkey(
-          s->session->sess_cert->peer_pkeys[SSL_PKEY_RSA_ENC].x509);
-    } else if (alg_a & SSL_aECDSA) {
-      pkey =
-          X509_get_pubkey(s->session->sess_cert->peer_pkeys[SSL_PKEY_ECC].x509);
+    if (alg_a & (SSL_aRSA|SSL_aECDSA)) {
+      pkey = X509_get_pubkey(s->session->sess_cert->peer_cert);
+    } else {
+      /* Otherwise this is ECDHE_PSK, so no public key. */
+      assert(alg_a == SSL_aPSK);
     }
-    /* else anonymous ECDH, so no certificate or pkey. */
     EC_KEY_set_public_key(ecdh, srvr_ecpoint);
     s->session->sess_cert->peer_ecdh_tmp = ecdh;
     ecdh = NULL;
@@ -1508,6 +1503,36 @@ int ssl3_get_new_session_ticket(SSL *s) {
     return n;
   }
 
+  if (s->hit) {
+    /* The server is sending a new ticket for an existing session. Sessions are
+     * immutable once established, so duplicate all but the ticket of the
+     * existing session. */
+    uint8_t *bytes;
+    size_t bytes_len;
+    if (!SSL_SESSION_to_bytes_for_ticket(s->session, &bytes, &bytes_len)) {
+      goto err;
+    }
+    SSL_SESSION *new_session = SSL_SESSION_from_bytes(bytes, bytes_len);
+    OPENSSL_free(bytes);
+    if (new_session == NULL) {
+      /* This should never happen. */
+      OPENSSL_PUT_ERROR(SSL, ssl3_get_new_session_ticket, ERR_R_INTERNAL_ERROR);
+      goto err;
+    }
+    if (s->session->sess_cert != NULL) {
+      /* |sess_cert| is not serialized and must be duplicated explicitly. */
+      assert(new_session->sess_cert == NULL);
+      new_session->sess_cert = ssl_sess_cert_dup(s->session->sess_cert);
+      if (new_session->sess_cert == NULL) {
+        SSL_SESSION_free(new_session);
+        goto err;
+      }
+    }
+
+    SSL_SESSION_free(s->session);
+    s->session = new_session;
+  }
+
   CBS_init(&new_session_ticket, s->init_msg, n);
 
   if (!CBS_get_u32(&new_session_ticket,
@@ -1702,8 +1727,7 @@ int ssl3_send_client_key_exchange(SSL *s) {
         goto err;
       }
 
-      pkey = X509_get_pubkey(
-          s->session->sess_cert->peer_pkeys[SSL_PKEY_RSA_ENC].x509);
+      pkey = X509_get_pubkey(s->session->sess_cert->peer_cert);
       if (pkey == NULL ||
           pkey->type != EVP_PKEY_RSA ||
           pkey->pkey.rsa == NULL) {
@@ -2159,9 +2183,7 @@ int ssl3_send_client_certificate(SSL *s) {
 #define has_bits(i, m) (((i) & (m)) == (m))
 
 int ssl3_check_cert_and_algorithm(SSL *s) {
-  int i, idx;
   long alg_k, alg_a;
-  EVP_PKEY *pkey = NULL;
   SESS_CERT *sc;
   DH *dh;
 
@@ -2181,11 +2203,9 @@ int ssl3_check_cert_and_algorithm(SSL *s) {
 
   dh = s->session->sess_cert->peer_dh_tmp;
 
-  /* This is the passed certificate */
-
-  idx = sc->peer_cert_type;
-  if (idx == SSL_PKEY_ECC) {
-    if (ssl_check_srvr_ecc_cert_and_alg(sc->peer_pkeys[idx].x509, s) == 0) {
+  int cert_type = X509_certificate_type(sc->peer_cert, NULL);
+  if (cert_type & EVP_PK_EC) {
+    if (ssl_check_srvr_ecc_cert_and_alg(sc->peer_cert, s) == 0) {
       /* check failed */
       OPENSSL_PUT_ERROR(SSL, ssl3_check_cert_and_algorithm, SSL_R_BAD_ECC_CERT);
       goto f_err;
@@ -2197,25 +2217,21 @@ int ssl3_check_cert_and_algorithm(SSL *s) {
                       SSL_R_MISSING_ECDSA_SIGNING_CERT);
     goto f_err;
   }
-  pkey = X509_get_pubkey(sc->peer_pkeys[idx].x509);
-  i = X509_certificate_type(sc->peer_pkeys[idx].x509, pkey);
-  EVP_PKEY_free(pkey);
 
   /* Check that we have a certificate if we require one */
-  if ((alg_a & SSL_aRSA) && !has_bits(i, EVP_PK_RSA | EVP_PKT_SIGN)) {
+  if ((alg_a & SSL_aRSA) && !has_bits(cert_type, EVP_PK_RSA | EVP_PKT_SIGN)) {
     OPENSSL_PUT_ERROR(SSL, ssl3_check_cert_and_algorithm,
                       SSL_R_MISSING_RSA_SIGNING_CERT);
     goto f_err;
   }
 
-  if ((alg_k & SSL_kRSA) && !has_bits(i, EVP_PK_RSA | EVP_PKT_ENC)) {
+  if ((alg_k & SSL_kRSA) && !has_bits(cert_type, EVP_PK_RSA | EVP_PKT_ENC)) {
     OPENSSL_PUT_ERROR(SSL, ssl3_check_cert_and_algorithm,
                       SSL_R_MISSING_RSA_ENCRYPTING_CERT);
     goto f_err;
   }
 
-  if ((alg_k & SSL_kDHE) &&
-      !(has_bits(i, EVP_PK_DH | EVP_PKT_EXCH) || dh != NULL)) {
+  if ((alg_k & SSL_kDHE) && dh == NULL) {
     OPENSSL_PUT_ERROR(SSL, ssl3_check_cert_and_algorithm, SSL_R_MISSING_DH_KEY);
     goto f_err;
   }
