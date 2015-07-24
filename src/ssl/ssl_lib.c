@@ -1975,8 +1975,16 @@ void ssl_update_cache(SSL *s, int mode) {
     return;
   }
 
+  int has_new_session = !s->hit;
+  if (!s->server && s->tlsext_ticket_expected) {
+    /* A client may see new sessions on abbreviated handshakes if the server
+     * decides to renew the ticket. Once the handshake is completed, it should
+     * be inserted into the cache. */
+    has_new_session = 1;
+  }
+
   SSL_CTX *ctx = s->initial_ctx;
-  if ((ctx->session_cache_mode & mode) == mode && !s->hit &&
+  if ((ctx->session_cache_mode & mode) == mode && has_new_session &&
       ((ctx->session_cache_mode & SSL_SESS_CACHE_NO_INTERNAL_STORE) ||
        SSL_CTX_add_session(ctx, s->session)) &&
       ctx->new_session_cb != NULL) {
@@ -2958,6 +2966,10 @@ err:
   *out_len = 0;
   memset(out, 0, max_out);
   return 0;
+}
+
+int SSL_initial_handshake_complete(const SSL *ssl) {
+  return ssl->s3->initial_handshake_complete;
 }
 
 int SSL_CTX_sess_connect(const SSL_CTX *ctx) { return 0; }
