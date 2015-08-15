@@ -17,10 +17,11 @@ LOCAL_CFLAGS = -Wno-unused-parameter
 # sha256-armv4.S does not compile with clang.
 LOCAL_CLANG_ASFLAGS_arm += -no-integrated-as
 ifeq ($(TARGET_ARCH),arm64)
-ifeq ($(USE_CLANG_PLATFORM_BUILD),true)
-LOCAL_ASFLAGS += -march=armv8-a+crypto
+LOCAL_CLANG_ASFLAGS += -march=armv8-a+crypto
 endif
-endif
+# TODO(danalbert): Fix this, just disabling while we investigate the build
+# break from armv8-a+crypto.
+LOCAL_CLANG := false
 include $(LOCAL_PATH)/crypto-sources.mk
 include $(BUILD_STATIC_LIBRARY)
 
@@ -35,10 +36,11 @@ LOCAL_SDK_VERSION := 9
 # sha256-armv4.S does not compile with clang.
 LOCAL_CLANG_ASFLAGS_arm += -no-integrated-as
 ifeq ($(TARGET_ARCH),arm64)
-ifeq ($(USE_CLANG_PLATFORM_BUILD),true)
-LOCAL_ASFLAGS += -march=armv8-a+crypto
+LOCAL_CLANG_ASFLAGS += -march=armv8-a+crypto
 endif
-endif
+# TODO(danalbert): Fix this, just disabling while we investigate the build
+# break from armv8-a+crypto.
+LOCAL_CLANG := false
 include $(LOCAL_PATH)/crypto-sources.mk
 include $(BUILD_SHARED_LIBRARY)
 
