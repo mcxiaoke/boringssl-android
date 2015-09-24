@@ -139,8 +139,8 @@ func (hs *serverHandshakeState) readClientHello() (isResume bool, err error) {
 		c.sendAlert(alertUnexpectedMessage)
 		return false, unexpectedMessageError(hs.clientHello, msg)
 	}
-	if config.Bugs.RequireFastradioPadding && len(hs.clientHello.raw) < 1000 {
-		return false, errors.New("tls: ClientHello record size should be larger than 1000 bytes when padding enabled.")
+	if size := config.Bugs.RequireClientHelloSize; size != 0 && len(hs.clientHello.raw) != size {
+		return false, fmt.Errorf("tls: ClientHello record size is %d, but expected %d", len(hs.clientHello.raw), size)
 	}
 
 	if c.isDTLS && !config.Bugs.SkipHelloVerifyRequest {
@@ -210,8 +210,11 @@ func (hs *serverHandshakeState) readClientHello() (isResume bool, err error) {
 	}
 	c.haveVers = true
 
-	hs.hello = new(serverHelloMsg)
-	hs.hello.isDTLS = c.isDTLS
+	hs.hello = &serverHelloMsg{
+		isDTLS:          c.isDTLS,
+		customExtension: config.Bugs.CustomExtension,
+		npnLast:         config.Bugs.SwapNPNAndALPN,
+	}
 
 	supportedCurve := false
 	preferredCurves := config.curvePreferences()
@@ -285,12 +288,18 @@ Curves:
 	}
 
 	if len(hs.clientHello.alpnProtocols) > 0 {
-		if selectedProto, fallback := mutualProtocol(hs.clientHello.alpnProtocols, c.config.NextProtos); !fallback {
+		if proto := c.config.Bugs.ALPNProtocol; proto != nil {
+			hs.hello.alpnProtocol = *proto
+			hs.hello.alpnProtocolEmpty = len(*proto) == 0
+			c.clientProtocol = *proto
+			c.usedALPN = true
+		} else if selectedProto, fallback := mutualProtocol(hs.clientHello.alpnProtocols, c.config.NextProtos); !fallback {
 			hs.hello.alpnProtocol = selectedProto
 			c.clientProtocol = selectedProto
 			c.usedALPN = true
 		}
-	} else {
+	}
+	if len(hs.clientHello.alpnProtocols) == 0 || c.config.Bugs.NegotiateALPNAndNPN {
 		// Although sending an empty NPN extension is reasonable, Firefox has
 		// had a bug around this. Best to send nothing at all if
 		// config.NextProtos is empty. See
@@ -333,6 +342,12 @@ Curves:
 
 	if c.config.Bugs.SendSRTPProtectionProfile != 0 {
 		hs.hello.srtpProtectionProfile = c.config.Bugs.SendSRTPProtectionProfile
+	}
+
+	if expected := c.config.Bugs.ExpectedCustomExtension; expected != nil {
+		if hs.clientHello.customExtension != *expected {
+			return false, fmt.Errorf("tls: bad custom extension contents %q", hs.clientHello.customExtension)
+		}
 	}
 
 	_, hs.ecdsaOk = hs.cert.PrivateKey.(*ecdsa.PrivateKey)
@@ -516,7 +531,9 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 
 	if !isPSK {
 		certMsg := new(certificateMsg)
-		certMsg.certificates = hs.cert.Certificate
+		if !config.Bugs.EmptyCertificateList {
+			certMsg.certificates = hs.cert.Certificate
+		}
 		if !config.Bugs.UnauthenticatedECDH {
 			certMsgBytes := certMsg.marshal()
 			if config.Bugs.WrongCertificateMessageType {
@@ -668,6 +685,7 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 			if !isSupportedSignatureAndHash(signatureAndHash, config.signatureAndHashesForServer()) {
 				return errors.New("tls: unsupported hash function for client certificate")
 			}
+			c.clientCertSignatureHash = signatureAndHash.hash
 		} else {
 			// Before TLS 1.2 the signature algorithm was implicit
 			// from the key type, and only one hash per signature
