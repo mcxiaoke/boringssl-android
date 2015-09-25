@@ -22,7 +22,6 @@
 #include <openssl/err.h>
 
 #include "../test/file_test.h"
-#include "../test/scoped_types.h"
 #include "../test/stl_compat.h"
 
 
@@ -35,6 +34,18 @@
 //   AD: b654574932
 //   CT: 5294265a60
 //   TAG: 1d45758621762e061368e68868e2f929
+
+// EVP_AEAD_CTX lacks a zero state, so it doesn't fit easily into
+// ScopedOpenSSLContext.
+class EVP_AEAD_CTXScoper {
+ public:
+  EVP_AEAD_CTXScoper(EVP_AEAD_CTX *ctx) : ctx_(ctx) {}
+  ~EVP_AEAD_CTXScoper() {
+    EVP_AEAD_CTX_cleanup(ctx_);
+  }
+ private:
+  EVP_AEAD_CTX *ctx_;
+};
 
 static bool TestAEAD(FileTest *t, void *arg) {
   const EVP_AEAD *aead = reinterpret_cast<const EVP_AEAD*>(arg);
@@ -49,19 +60,20 @@ static bool TestAEAD(FileTest *t, void *arg) {
     return false;
   }
 
-  ScopedEVP_AEAD_CTX ctx;
-  if (!EVP_AEAD_CTX_init_with_direction(ctx.get(), aead,
-                                        bssl::vector_data(&key), key.size(),
-                                        tag.size(), evp_aead_seal)) {
+  EVP_AEAD_CTX ctx;
+  if (!EVP_AEAD_CTX_init_with_direction(&ctx, aead, bssl::vector_data(&key),
+                                        key.size(), tag.size(),
+                                        evp_aead_seal)) {
     t->PrintLine("Failed to init AEAD.");
     return false;
   }
+  EVP_AEAD_CTXScoper cleanup(&ctx);
 
   std::vector<uint8_t> out(in.size() + EVP_AEAD_max_overhead(aead));
   if (!t->HasAttribute("NO_SEAL")) {
     size_t out_len;
-    if (!EVP_AEAD_CTX_seal(ctx.get(), bssl::vector_data(&out), &out_len,
-                           out.size(), bssl::vector_data(&nonce), nonce.size(),
+    if (!EVP_AEAD_CTX_seal(&ctx, bssl::vector_data(&out), &out_len, out.size(),
+                           bssl::vector_data(&nonce), nonce.size(),
                            bssl::vector_data(&in), in.size(),
                            bssl::vector_data(&ad), ad.size())) {
       t->PrintLine("Failed to run AEAD.");
@@ -89,17 +101,17 @@ static bool TestAEAD(FileTest *t, void *arg) {
 
   // The "stateful" AEADs for implementing pre-AEAD cipher suites need to be
   // reset after each operation.
-  ctx.Reset();
-  if (!EVP_AEAD_CTX_init_with_direction(ctx.get(), aead,
-                                        bssl::vector_data(&key), key.size(),
-                                        tag.size(), evp_aead_open)) {
+  EVP_AEAD_CTX_cleanup(&ctx);
+  if (!EVP_AEAD_CTX_init_with_direction(&ctx, aead, bssl::vector_data(&key),
+                                        key.size(), tag.size(),
+                                        evp_aead_open)) {
     t->PrintLine("Failed to init AEAD.");
     return false;
   }
 
   std::vector<uint8_t> out2(out.size());
   size_t out2_len;
-  int ret = EVP_AEAD_CTX_open(ctx.get(),
+  int ret = EVP_AEAD_CTX_open(&ctx,
                               bssl::vector_data(&out2), &out2_len, out2.size(),
                               bssl::vector_data(&nonce), nonce.size(),
                               bssl::vector_data(&out), out.size(),
@@ -125,10 +137,10 @@ static bool TestAEAD(FileTest *t, void *arg) {
 
   // The "stateful" AEADs for implementing pre-AEAD cipher suites need to be
   // reset after each operation.
-  ctx.Reset();
-  if (!EVP_AEAD_CTX_init_with_direction(ctx.get(), aead,
-                                        bssl::vector_data(&key), key.size(),
-                                        tag.size(), evp_aead_open)) {
+  EVP_AEAD_CTX_cleanup(&ctx);
+  if (!EVP_AEAD_CTX_init_with_direction(&ctx, aead, bssl::vector_data(&key),
+                                        key.size(), tag.size(),
+                                        evp_aead_open)) {
     t->PrintLine("Failed to init AEAD.");
     return false;
   }
@@ -136,8 +148,8 @@ static bool TestAEAD(FileTest *t, void *arg) {
   // Garbage at the end isn't ignored.
   out.push_back(0);
   out2.resize(out.size());
-  if (EVP_AEAD_CTX_open(ctx.get(), bssl::vector_data(&out2), &out2_len,
-                        out2.size(), bssl::vector_data(&nonce), nonce.size(),
+  if (EVP_AEAD_CTX_open(&ctx, bssl::vector_data(&out2), &out2_len, out2.size(),
+                        bssl::vector_data(&nonce), nonce.size(),
                         bssl::vector_data(&out), out.size(),
                         bssl::vector_data(&ad), ad.size())) {
     t->PrintLine("Decrypted bad data with trailing garbage.");
@@ -147,10 +159,10 @@ static bool TestAEAD(FileTest *t, void *arg) {
 
   // The "stateful" AEADs for implementing pre-AEAD cipher suites need to be
   // reset after each operation.
-  ctx.Reset();
-  if (!EVP_AEAD_CTX_init_with_direction(ctx.get(), aead,
-                                        bssl::vector_data(&key), key.size(),
-                                        tag.size(), evp_aead_open)) {
+  EVP_AEAD_CTX_cleanup(&ctx);
+  if (!EVP_AEAD_CTX_init_with_direction(&ctx, aead, bssl::vector_data(&key),
+                                        key.size(), tag.size(),
+                                        evp_aead_open)) {
     t->PrintLine("Failed to init AEAD.");
     return false;
   }
@@ -159,8 +171,8 @@ static bool TestAEAD(FileTest *t, void *arg) {
   out[0] ^= 0x80;
   out.resize(out.size() - 1);
   out2.resize(out.size());
-  if (EVP_AEAD_CTX_open(ctx.get(), bssl::vector_data(&out2), &out2_len,
-                        out2.size(), bssl::vector_data(&nonce), nonce.size(),
+  if (EVP_AEAD_CTX_open(&ctx, bssl::vector_data(&out2), &out2_len, out2.size(),
+                        bssl::vector_data(&nonce), nonce.size(),
                         bssl::vector_data(&out), out.size(),
                         bssl::vector_data(&ad), ad.size())) {
     t->PrintLine("Decrypted bad data with corrupted byte.");
@@ -188,7 +200,6 @@ static int TestCleanupAfterInitFailure(const EVP_AEAD *aead) {
     fprintf(stderr, "A silly tag length didn't trigger an error!\n");
     return 0;
   }
-  ERR_clear_error();
 
   /* Running a second, failed _init should not cause a memory leak. */
   if (EVP_AEAD_CTX_init(&ctx, aead, key, key_len,
@@ -197,7 +208,6 @@ static int TestCleanupAfterInitFailure(const EVP_AEAD *aead) {
     fprintf(stderr, "A silly tag length didn't trigger an error!\n");
     return 0;
   }
-  ERR_clear_error();
 
   /* Calling _cleanup on an |EVP_AEAD_CTX| after a failed _init should be a
    * no-op. */

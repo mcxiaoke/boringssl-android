@@ -27,17 +27,16 @@
 
 
 bool Client(const std::vector<std::string> &args);
-bool DoPKCS12(const std::vector<std::string> &args);
-bool GenerateRSAKey(const std::vector<std::string> &args);
+bool Server(const std::vector<std::string> &args);
 bool MD5Sum(const std::vector<std::string> &args);
-bool Rand(const std::vector<std::string> &args);
 bool SHA1Sum(const std::vector<std::string> &args);
 bool SHA224Sum(const std::vector<std::string> &args);
 bool SHA256Sum(const std::vector<std::string> &args);
 bool SHA384Sum(const std::vector<std::string> &args);
 bool SHA512Sum(const std::vector<std::string> &args);
-bool Server(const std::vector<std::string> &args);
+bool DoPKCS12(const std::vector<std::string> &args);
 bool Speed(const std::vector<std::string> &args);
+bool Rand(const std::vector<std::string> &args);
 
 typedef bool (*tool_func_t)(const std::vector<std::string> &args);
 
@@ -47,20 +46,19 @@ struct Tool {
 };
 
 static const Tool kTools[] = {
-  { "client", Client },
-  { "genrsa", GenerateRSAKey },
-  { "md5sum", MD5Sum },
+  { "speed", Speed },
   { "pkcs12", DoPKCS12 },
-  { "rand", Rand },
+  { "client", Client },
   { "s_client", Client },
-  { "s_server", Server },
   { "server", Server },
+  { "s_server", Server },
+  { "md5sum", MD5Sum },
   { "sha1sum", SHA1Sum },
   { "sha224sum", SHA224Sum },
   { "sha256sum", SHA256Sum },
   { "sha384sum", SHA384Sum },
   { "sha512sum", SHA512Sum },
-  { "speed", Speed },
+  { "rand", Rand },
   { "", nullptr },
 };
 

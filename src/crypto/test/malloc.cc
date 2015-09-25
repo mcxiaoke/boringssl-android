@@ -34,8 +34,6 @@
 #if defined(__linux__) && defined(OPENSSL_GLIBC) && !defined(OPENSSL_ARM) && \
     !defined(OPENSSL_AARCH64) && !defined(OPENSSL_ASAN)
 
-#include <errno.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,14 +45,14 @@
 /* This file defines overrides for the standard allocation functions that allow
  * a given allocation to be made to fail for testing. If the program is run
  * with MALLOC_NUMBER_TO_FAIL set to a base-10 number then that allocation will
- * return NULL. If MALLOC_BREAK_ON_FAIL is also defined then the allocation
- * will signal SIGTRAP rather than return NULL.
+ * return NULL. If MALLOC_ABORT_ON_FAIL is also defined then the allocation
+ * will abort() rather than return NULL.
  *
  * This code is not thread safe. */
 
 static uint64_t current_malloc_count = 0;
 static uint64_t malloc_number_to_fail = 0;
-static char failure_enabled = 0, break_on_fail = 0;
+static char failure_enabled = 0, abort_on_fail = 0;
 static int in_call = 0;
 
 extern "C" {
@@ -97,7 +95,7 @@ static int should_fail_allocation() {
         std::set_new_handler(cpp_new_handler);
       }
     }
-    break_on_fail = (NULL != getenv("MALLOC_BREAK_ON_FAIL"));
+    abort_on_fail = (NULL != getenv("MALLOC_ABORT_ON_FAIL"));
     init = 1;
   }
 
@@ -110,8 +108,8 @@ static int should_fail_allocation() {
   should_fail = (current_malloc_count == malloc_number_to_fail);
   current_malloc_count++;
 
-  if (should_fail && break_on_fail) {
-    raise(SIGTRAP);
+  if (should_fail && abort_on_fail) {
+    abort();
   }
   return should_fail;
 }
@@ -120,7 +118,6 @@ extern "C" {
 
 void *malloc(size_t size) {
   if (should_fail_allocation()) {
-    errno = ENOMEM;
     return NULL;
   }
 
@@ -129,7 +126,6 @@ void *malloc(size_t size) {
 
 void *calloc(size_t num_elems, size_t size) {
   if (should_fail_allocation()) {
-    errno = ENOMEM;
     return NULL;
   }
 
@@ -138,7 +134,6 @@ void *calloc(size_t num_elems, size_t size) {
 
 void *realloc(void *ptr, size_t size) {
   if (should_fail_allocation()) {
-    errno = ENOMEM;
     return NULL;
   }
 

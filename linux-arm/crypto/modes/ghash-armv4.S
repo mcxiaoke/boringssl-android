@@ -1,6 +1,5 @@
 #if defined(__arm__)
-#if defined(__arm__)
-#include <openssl/arm_arch.h>
+#include "arm_arch.h"
 
 .syntax	unified
 
@@ -537,5 +536,4 @@ gcm_ghash_neon:
 .align	2
 .align	2
 
-#endif
 #endif
