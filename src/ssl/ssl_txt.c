@@ -80,14 +80,12 @@
  * OTHER ENTITY BASED ON INFRINGEMENT OF INTELLECTUAL PROPERTY RIGHTS OR
  * OTHERWISE. */
 
-#include <openssl/ssl.h>
-
 #include <inttypes.h>
 #include <stdio.h>
 
-#include <openssl/bio.h>
+#include <openssl/buf.h>
 #include <openssl/err.h>
-#include <openssl/x509.h>
+#include <openssl/mem.h>
 
 #include "internal.h"
 
@@ -98,7 +96,7 @@ int SSL_SESSION_print_fp(FILE *fp, const SSL_SESSION *x) {
 
   b = BIO_new(BIO_s_file());
   if (b == NULL) {
-    OPENSSL_PUT_ERROR(SSL, ERR_R_BUF_LIB);
+    OPENSSL_PUT_ERROR(SSL, SSL_SESSION_print_fp, ERR_R_BUF_LIB);
     return 0;
   }
 

@@ -20,10 +20,6 @@
 #include <openssl/mem.h>
 
 
-void CBB_zero(CBB *cbb) {
-  memset(cbb, 0, sizeof(CBB));
-}
-
 static int cbb_init(CBB *cbb, uint8_t *buf, size_t cap) {
   struct cbb_buffer_st *base;
 
@@ -247,11 +243,6 @@ int CBB_flush(CBB *cbb) {
   return 1;
 }
 
-size_t CBB_len(const CBB *cbb) {
-  assert(cbb->child == NULL);
-
-  return cbb->base->len;
-}
 
 static int cbb_add_length_prefixed(CBB *cbb, CBB *out_contents,
                                    size_t len_len) {

@@ -162,7 +162,7 @@ ___
 }
 
 $code.=<<___;
-#include <openssl/arm_arch.h>
+#include "arm_arch.h"
 
 .text
 

@@ -12,8 +12,7 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
-#undef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 200112L
+#define _POSIX_SOURCE
 
 #include <openssl/bio.h>
 #include <openssl/err.h>
@@ -51,7 +50,7 @@ int bio_ip_and_port_to_socket_and_addr(int *out_sock,
 
   ret = getaddrinfo(hostname, port_str, &hint, &result);
   if (ret != 0) {
-    OPENSSL_PUT_ERROR(SYS, 0);
+    OPENSSL_PUT_ERROR(SYS, getaddrinfo, 0);
     ERR_add_error_data(1, gai_strerror(ret));
     return 0;
   }

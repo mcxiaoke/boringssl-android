@@ -125,7 +125,8 @@ ASN1_BIT_STRING *c2i_ASN1_BIT_STRING(ASN1_BIT_STRING **a,
 
 	if (len < 1)
 		{
-		OPENSSL_PUT_ERROR(ASN1, ASN1_R_STRING_TOO_SHORT);
+		OPENSSL_PUT_ERROR(ASN1, c2i_ASN1_BIT_STRING,
+			ASN1_R_STRING_TOO_SHORT);
 		goto err;
 		}
 
@@ -140,7 +141,8 @@ ASN1_BIT_STRING *c2i_ASN1_BIT_STRING(ASN1_BIT_STRING **a,
 	padding = *(p++);
 	if (padding > 7)
 		{
-		OPENSSL_PUT_ERROR(ASN1, ASN1_R_INVALID_BIT_STRING_BITS_LEFT);
+		OPENSSL_PUT_ERROR(ASN1, c2i_ASN1_BIT_STRING,
+			ASN1_R_INVALID_BIT_STRING_BITS_LEFT);
 		goto err;
 		}
 
@@ -155,7 +157,8 @@ ASN1_BIT_STRING *c2i_ASN1_BIT_STRING(ASN1_BIT_STRING **a,
 		s=(unsigned char *)OPENSSL_malloc((int)len);
 		if (s == NULL)
 			{
-			OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+			OPENSSL_PUT_ERROR(ASN1, c2i_ASN1_BIT_STRING,
+				ERR_R_MALLOC_FAILURE);
 			goto err;
 			}
 		memcpy(s,p,(int)len);
@@ -206,7 +209,7 @@ int ASN1_BIT_STRING_set_bit(ASN1_BIT_STRING *a, int n, int value)
 								 w+1);
 		if (c == NULL)
 			{
-			OPENSSL_PUT_ERROR(ASN1, ERR_R_MALLOC_FAILURE);
+			OPENSSL_PUT_ERROR(ASN1, ASN1_BIT_STRING_set_bit, ERR_R_MALLOC_FAILURE);
 			return 0;
 			}
   		if (w+1-a->length > 0) memset(c+a->length, 0, w+1-a->length);
