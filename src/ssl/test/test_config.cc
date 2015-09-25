@@ -65,12 +65,9 @@ const Flag<bool> kBoolFlags[] = {
   { "-expect-session-miss", &TestConfig::expect_session_miss },
   { "-expect-extended-master-secret",
     &TestConfig::expect_extended_master_secret },
-  { "-allow-unsafe-legacy-renegotiation",
-    &TestConfig::allow_unsafe_legacy_renegotiation },
   { "-enable-ocsp-stapling", &TestConfig::enable_ocsp_stapling },
   { "-enable-signed-cert-timestamps",
     &TestConfig::enable_signed_cert_timestamps },
-  { "-fastradio-padding", &TestConfig::fastradio_padding },
   { "-implicit-handshake", &TestConfig::implicit_handshake },
   { "-use-early-callback", &TestConfig::use_early_callback },
   { "-fail-early-callback", &TestConfig::fail_early_callback },
@@ -82,9 +79,27 @@ const Flag<bool> kBoolFlags[] = {
   { "-reject-peer-renegotiations", &TestConfig::reject_peer_renegotiations },
   { "-no-legacy-server-connect", &TestConfig::no_legacy_server_connect },
   { "-tls-unique", &TestConfig::tls_unique },
+  { "-use-async-private-key", &TestConfig::use_async_private_key },
+  { "-expect-ticket-renewal", &TestConfig::expect_ticket_renewal },
+  { "-expect-no-session", &TestConfig::expect_no_session },
+  { "-use-ticket-callback", &TestConfig::use_ticket_callback },
+  { "-renew-ticket", &TestConfig::renew_ticket },
+  { "-enable-client-custom-extension",
+    &TestConfig::enable_client_custom_extension },
+  { "-enable-server-custom-extension",
+    &TestConfig::enable_server_custom_extension },
+  { "-custom-extension-skip", &TestConfig::custom_extension_skip },
+  { "-custom-extension-fail-add", &TestConfig::custom_extension_fail_add },
+  { "-check-close-notify", &TestConfig::check_close_notify },
+  { "-shim-shuts-down", &TestConfig::shim_shuts_down },
+  { "-microsoft-big-sslv3-buffer", &TestConfig::microsoft_big_sslv3_buffer },
+  { "-verify-fail", &TestConfig::verify_fail },
+  { "-verify-peer", &TestConfig::verify_peer },
+  { "-expect-verify-result", &TestConfig::expect_verify_result }
 };
 
 const Flag<std::string> kStringFlags[] = {
+  { "-digest-prefs", &TestConfig::digest_prefs },
   { "-key-file", &TestConfig::key_file },
   { "-cert-file", &TestConfig::cert_file },
   { "-expect-server-name", &TestConfig::expected_server_name },
@@ -101,6 +116,8 @@ const Flag<std::string> kStringFlags[] = {
   { "-psk-identity", &TestConfig::psk_identity },
   { "-srtp-profiles", &TestConfig::srtp_profiles },
   { "-cipher", &TestConfig::cipher },
+  { "-cipher-tls10", &TestConfig::cipher_tls10 },
+  { "-cipher-tls11", &TestConfig::cipher_tls11 },
   { "-export-label", &TestConfig::export_label },
   { "-export-context", &TestConfig::export_context },
 };
@@ -111,6 +128,8 @@ const Flag<std::string> kBase64Flags[] = {
   { "-expect-ocsp-response", &TestConfig::expected_ocsp_response },
   { "-expect-signed-cert-timestamps",
     &TestConfig::expected_signed_cert_timestamps },
+  { "-ocsp-response", &TestConfig::ocsp_response },
+  { "-signed-cert-timestamps", &TestConfig::signed_cert_timestamps },
 };
 
 const Flag<int> kIntFlags[] = {
