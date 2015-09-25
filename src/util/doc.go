@@ -48,8 +48,9 @@ type HeaderSection struct {
 	// Preamble contains a comment for a group of functions.
 	Preamble []string
 	Decls    []HeaderDecl
-	// Anchor, if non-empty, is the URL fragment to use in anchor tags.
-	Anchor string
+	// Num is just the index of the section. It's included in order to help
+	// text/template generate anchors.
+	Num int
 	// IsPrivate is true if the section contains private functions (as
 	// indicated by its name).
 	IsPrivate bool
@@ -64,8 +65,10 @@ type HeaderDecl struct {
 	Name string
 	// Decl contains the preformatted C declaration itself.
 	Decl string
-	// Anchor, if non-empty, is the URL fragment to use in anchor tags.
-	Anchor string
+	// Num is an index for the declaration, but the value is unique for all
+	// declarations in a HeaderFile. It's included in order to help
+	// text/template generate anchors.
+	Num int
 }
 
 const (
@@ -189,6 +192,14 @@ func extractDecl(lines []string, lineNo int) (decl string, rest []string, restLi
 	return
 }
 
+func skipPast(s, skip string) string {
+	i := strings.Index(s, skip)
+	if i > 0 {
+		return s[i:]
+	}
+	return s
+}
+
 func skipLine(s string) string {
 	i := strings.Index(s, "\n")
 	if i > 0 {
@@ -216,9 +227,8 @@ func getNameFromDecl(decl string) (string, bool) {
 		}
 		return decl[:i], true
 	}
-	decl = strings.TrimPrefix(decl, "OPENSSL_EXPORT ")
-	decl = strings.TrimPrefix(decl, "STACK_OF(")
-	decl = strings.TrimPrefix(decl, "LHASH_OF(")
+	decl = skipPast(decl, "STACK_OF(")
+	decl = skipPast(decl, "LHASH_OF(")
 	i := strings.Index(decl, "(")
 	if i < 0 {
 		return "", false
@@ -231,10 +241,6 @@ func getNameFromDecl(decl string) (string, bool) {
 		j++
 	}
 	return decl[j+1 : i], true
-}
-
-func sanitizeAnchor(name string) string {
-	return strings.Replace(name, " ", "-", -1)
 }
 
 func (config *Config) parseHeader(path string) (*HeaderFile, error) {
@@ -308,7 +314,7 @@ func (config *Config) parseHeader(path string) (*HeaderFile, error) {
 		}
 	}
 
-	allAnchors := make(map[string]struct{})
+	var sectionNumber, declNumber int
 
 	for {
 		// Start of a section.
@@ -324,7 +330,10 @@ func (config *Config) parseHeader(path string) (*HeaderFile, error) {
 			return nil, fmt.Errorf("blank line at start of section on line %d", lineNo)
 		}
 
-		var section HeaderSection
+		section := HeaderSection{
+			Num: sectionNumber,
+		}
+		sectionNumber++
 
 		if strings.HasPrefix(line, commentStart) {
 			comment, rest, restLineNo, err := extractComment(lines, lineNo)
@@ -332,17 +341,8 @@ func (config *Config) parseHeader(path string) (*HeaderFile, error) {
 				return nil, err
 			}
 			if len(rest) > 0 && len(rest[0]) == 0 {
-				anchor := sanitizeAnchor(firstSentence(comment))
-				if len(anchor) > 0 {
-					if _, ok := allAnchors[anchor]; ok {
-						return nil, fmt.Errorf("duplicate anchor: %s", anchor)
-					}
-					allAnchors[anchor] = struct{}{}
-				}
-
 				section.Preamble = comment
 				section.IsPrivate = len(comment) > 0 && strings.HasPrefix(comment[0], "Private functions")
-				section.Anchor = anchor
 				lines = rest[1:]
 				lineNo = restLineNo + 1
 			}
@@ -381,18 +381,13 @@ func (config *Config) parseHeader(path string) (*HeaderFile, error) {
 			if last := len(section.Decls) - 1; len(name) == 0 && len(comment) == 0 && last >= 0 {
 				section.Decls[last].Decl += "\n" + decl
 			} else {
-				anchor := sanitizeAnchor(name)
-				// TODO(davidben): Enforce uniqueness. This is
-				// skipped because #ifdefs currently result in
-				// duplicate table-of-contents entries.
-				allAnchors[anchor] = struct{}{}
-
 				section.Decls = append(section.Decls, HeaderDecl{
 					Comment: comment,
 					Name:    name,
 					Decl:    decl,
-					Anchor:  anchor,
+					Num:     declNumber,
 				})
+				declNumber++
 			}
 
 			if len(lines) > 0 && len(lines[0]) == 0 {
@@ -456,7 +451,7 @@ again:
 	if end > 0 {
 		end += start
 		w := strings.ToLower(string(s[start:end]))
-		if w == "a" || w == "an" {
+		if w == "a" || w == "an" || w == "deprecated:" {
 			start = end + 1
 			goto again
 		}
@@ -500,9 +495,9 @@ func generate(outPath string, config *Config) (map[string]string, error) {
     <ol>
       {{range .Sections}}
         {{if not .IsPrivate}}
-          {{if .Anchor}}<li class="header"><a href="#{{.Anchor}}">{{.Preamble | firstSentence | html | markupPipeWords}}</a></li>{{end}}
+          {{if .Preamble}}<li class="header"><a href="#section-{{.Num}}">{{.Preamble | firstSentence | html | markupPipeWords}}</a></li>{{end}}
           {{range .Decls}}
-            {{if .Anchor}}<li><a href="#{{.Anchor}}"><tt>{{.Name}}</tt></a></li>{{end}}
+            {{if .Name}}<li><a href="#decl-{{.Num}}"><tt>{{.Name}}</tt></a></li>{{end}}
           {{end}}
         {{end}}
       {{end}}
@@ -513,7 +508,7 @@ func generate(outPath string, config *Config) (map[string]string, error) {
         <div class="section">
         {{if .Preamble}}
           <div class="sectionpreamble">
-          <a{{if .Anchor}} name="{{.Anchor}}"{{end}}>
+          <a name="section-{{.Num}}">
           {{range .Preamble}}<p>{{. | html | markupPipeWords}}</p>{{end}}
           </a>
           </div>
@@ -521,7 +516,7 @@ func generate(outPath string, config *Config) (map[string]string, error) {
 
         {{range .Decls}}
           <div class="decl">
-          <a{{if .Anchor}} name="{{.Anchor}}"{{end}}>
+          <a name="decl-{{.Num}}">
           {{range .Comment}}
             <p>{{. | html | markupPipeWords | newlinesToBR | markupFirstWord}}</p>
           {{end}}
@@ -610,14 +605,6 @@ func generateIndex(outPath string, config *Config, headerDescriptions map[string
 	return nil
 }
 
-func copyFile(outPath string, inFilePath string) error {
-	bytes, err := ioutil.ReadFile(inFilePath)
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(filepath.Join(outPath, filepath.Base(inFilePath)), bytes, 0666)
-}
-
 func main() {
 	var (
 		configFlag *string = flag.String("config", "doc.config", "Location of config file")
@@ -656,11 +643,6 @@ func main() {
 
 	if err := generateIndex(*outputDir, &config, headerDescriptions); err != nil {
 		fmt.Printf("Failed to generate index: %s\n", err)
-		os.Exit(1)
-	}
-
-	if err := copyFile(*outputDir, "doc.css"); err != nil {
-		fmt.Printf("Failed to copy static file: %s\n", err)
 		os.Exit(1)
 	}
 }

@@ -1,4 +1,4 @@
-include_directories(../../include)
+include_directories(. .. ../../include)
 
 add_library(
   rsa
@@ -15,7 +15,7 @@ add_library(
 add_executable(
   rsa_test
 
-  rsa_test.cc
+  rsa_test.c
 
   $<TARGET_OBJECTS:test_support>
 )

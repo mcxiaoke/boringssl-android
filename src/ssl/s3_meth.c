@@ -54,8 +54,6 @@
  * copied and put under another distribution licence
  * [including the GNU Public Licence.] */
 
-#include <openssl/ssl.h>
-
 #include "internal.h"
 
 
@@ -70,6 +68,8 @@ static const SSL_PROTOCOL_METHOD TLS_protocol_method = {
     ssl3_read_close_notify,
     ssl3_write_app_data,
     ssl3_dispatch_alert,
+    ssl3_ctrl,
+    ssl3_ctx_ctrl,
     ssl3_supports_cipher,
     SSL3_HM_HEADER_LENGTH,
     ssl3_set_handshake_header,
