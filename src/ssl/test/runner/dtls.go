@@ -216,13 +216,10 @@ func (c *Conn) dtlsFlushHandshake() error {
 	// Pack handshake fragments into records.
 	var records [][]byte
 	for _, fragment := range fragments {
-		if c.config.Bugs.SplitFragmentHeader {
-			records = append(records, fragment[:2])
-			records = append(records, fragment[2:])
-		} else if c.config.Bugs.SplitFragmentBody {
-			if len(fragment) > 12 {
-				records = append(records, fragment[:13])
-				records = append(records, fragment[13:])
+		if n := c.config.Bugs.SplitFragments; n > 0 {
+			if len(fragment) > n {
+				records = append(records, fragment[:n])
+				records = append(records, fragment[n:])
 			} else {
 				records = append(records, fragment)
 			}
@@ -301,13 +298,13 @@ func (c *Conn) dtlsSealRecord(typ recordType, data []byte) (b *block, err error)
 	b.data[1] = byte(vers >> 8)
 	b.data[2] = byte(vers)
 	// DTLS records include an explicit sequence number.
-	copy(b.data[3:11], c.out.seq[0:])
+	copy(b.data[3:11], c.out.outSeq[0:])
 	b.data[11] = byte(len(data) >> 8)
 	b.data[12] = byte(len(data))
 	if explicitIVLen > 0 {
 		explicitIV := b.data[recordHeaderLen : recordHeaderLen+explicitIVLen]
 		if explicitIVIsSeq {
-			copy(explicitIV, c.out.seq[:])
+			copy(explicitIV, c.out.outSeq[:])
 		} else {
 			if _, err = io.ReadFull(c.config.rand(), explicitIV); err != nil {
 				return
