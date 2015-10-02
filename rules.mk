@@ -66,6 +66,5 @@ GLOBAL_INCLUDES += $(addprefix $(LOCAL_DIR)/,$(LOCAL_C_INCLUDES))
 
 MODULE_DEPS := \
 	lib/openssl-stubs \
-	lib/libc-trusty
 
 include make/module.mk
