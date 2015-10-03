@@ -49,29 +49,30 @@ include $(BUILD_EXECUTABLE)
 
 # Host static library
 include $(CLEAR_VARS)
-LOCAL_IS_HOST_MODULE := true
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcrypto_static
-LOCAL_MODULE_HOST_OS := darwin linux windows
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/src/include
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/crypto-sources.mk
 LOCAL_CFLAGS += -fvisibility=hidden -DBORINGSSL_SHARED_LIBRARY -DBORINGSSL_IMPLEMENTATION -Wno-unused-parameter
 # Windows and Macs both have problems with assembly files
-LOCAL_CFLAGS_darwin += -DOPENSSL_NO_ASM
-LOCAL_CFLAGS_windows += -DOPENSSL_NO_ASM
+ifneq ($(HOST_OS),linux)
+LOCAL_CFLAGS += -DOPENSSL_NO_ASM
+endif
 include $(LOCAL_PATH)/crypto-sources.mk
 include $(BUILD_HOST_STATIC_LIBRARY)
 
 # Host shared library
 include $(CLEAR_VARS)
-LOCAL_IS_HOST_MODULE := true
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcrypto-host
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
 LOCAL_MULTILIB := both
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/crypto-sources.mk
 LOCAL_CFLAGS += -fvisibility=hidden -DBORINGSSL_SHARED_LIBRARY -DBORINGSSL_IMPLEMENTATION -Wno-unused-parameter
 # Windows and Macs both have problems with assembly files
-LOCAL_CFLAGS_darwin += -DOPENSSL_NO_ASM
-LOCAL_CFLAGS_windows += -DOPENSSL_NO_ASM
+ifneq ($(HOST_OS),linux)
+LOCAL_CFLAGS += -DOPENSSL_NO_ASM
+endif
 include $(LOCAL_PATH)/crypto-sources.mk
 include $(BUILD_HOST_SHARED_LIBRARY)
 
