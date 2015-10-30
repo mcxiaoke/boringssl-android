@@ -77,10 +77,8 @@ struct TestConfig {
   std::string export_label;
   std::string export_context;
   bool use_export_context = false;
-  bool reject_peer_renegotiations = false;
   bool no_legacy_server_connect = false;
   bool tls_unique = false;
-  bool use_async_private_key = false;
   bool expect_ticket_renewal = false;
   bool expect_no_session = false;
   bool use_ticket_callback = false;
@@ -97,6 +95,10 @@ struct TestConfig {
   bool verify_peer = false;
   bool expect_verify_result = false;
   std::string signed_cert_timestamps;
+  int expect_total_renegotiations = 0;
+  bool renegotiate_once = false;
+  bool renegotiate_freely = false;
+  bool disable_npn = false;
 };
 
 bool ParseConfig(int argc, char **argv, TestConfig *out_config);

@@ -444,8 +444,9 @@ OPENSSL_EXPORT BIO *BIO_new_fd(int fd, int close_flag);
  * or zero on error. */
 OPENSSL_EXPORT int BIO_set_fd(BIO *bio, int fd, int close_flag);
 
-/* BIO_get_fd sets |*out_fd| to the file descriptor currently in use by |bio|.
- * It returns one on success and zero on error. */
+/* BIO_get_fd returns the file descriptor currently in use by |bio| or -1 if
+ * |bio| does not wrap a file descriptor. If there is a file descriptor and
+ * |out_fd| is not NULL, it also sets |*out_fd| to the file descriptor. */
 OPENSSL_EXPORT int BIO_get_fd(BIO *bio, int *out_fd);
 
 
@@ -841,7 +842,6 @@ struct bio_st {
 #define BIO_C_GET_MD_CTX			120
 #define BIO_C_GET_PROXY_PARAM			121
 #define BIO_C_SET_BUFF_READ_DATA		122 /* data to read first */
-#define BIO_C_GET_CONNECT			123
 #define BIO_C_GET_ACCEPT			124
 #define BIO_C_SET_SSL_RENEGOTIATE_BYTES		125
 #define BIO_C_GET_SSL_NUM_RENEGOTIATES		126
