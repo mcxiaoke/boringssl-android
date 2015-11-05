@@ -17,4 +17,3 @@ add_executable(
 )
 
 target_link_libraries(hkdf_test crypto)
-add_dependencies(all_tests hkdf_test)

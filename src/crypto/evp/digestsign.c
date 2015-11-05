@@ -55,6 +55,7 @@
 
 #include <openssl/evp.h>
 
+#include <openssl/digest.h>
 #include <openssl/err.h>
 
 #include "internal.h"
@@ -76,6 +77,10 @@ static int do_sigver_init(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx,
     return 0;
   }
   ctx->pctx_ops = &md_pctx_ops;
+
+  if (type == NULL) {
+    type = EVP_sha1();
+  }
 
   if (type == NULL) {
     OPENSSL_PUT_ERROR(EVP, EVP_R_NO_DEFAULT_DIGEST);

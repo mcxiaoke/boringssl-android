@@ -16,6 +16,7 @@ add_library(
   rand.c
   urandom.c
   windows.c
+  hwrand.c
 
   ${RAND_ARCH_SOURCES}
 )

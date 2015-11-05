@@ -18,4 +18,3 @@ add_executable(
 )
 
 target_link_libraries(digest_test crypto)
-add_dependencies(all_tests digest_test)

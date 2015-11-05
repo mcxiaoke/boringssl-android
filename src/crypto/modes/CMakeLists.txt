@@ -63,4 +63,3 @@ add_executable(
 )
 
 target_link_libraries(gcm_test crypto)
-add_dependencies(all_tests gcm_test)

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package runner
+package main
 
 import (
 	"container/list"
@@ -773,15 +773,6 @@ type ProtocolBugs struct {
 	// NegotiateALPNAndNPN, if true, causes the server to negotiate both
 	// ALPN and NPN in the same connetion.
 	NegotiateALPNAndNPN bool
-
-	// SendEmptySessionTicket, if true, causes the server to send an empty
-	// session ticket.
-	SendEmptySessionTicket bool
-
-	// FailIfSessionOffered, if true, causes the server to fail any
-	// connections where the client offers a non-empty session ID or session
-	// ticket.
-	FailIfSessionOffered bool
 }
 
 func (c *Config) serverInit() {

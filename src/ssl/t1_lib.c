@@ -122,7 +122,6 @@
 #include <openssl/mem.h>
 #include <openssl/obj.h>
 #include <openssl/rand.h>
-#include <openssl/type_check.h>
 
 #include "internal.h"
 
@@ -309,7 +308,7 @@ char ssl_early_callback_init(struct ssl_early_callback_ctx *ctx) {
   return 1;
 }
 
-int SSL_early_callback_ctx_extension_get(
+char SSL_early_callback_ctx_extension_get(
     const struct ssl_early_callback_ctx *ctx, uint16_t extension_type,
     const uint8_t **out_data, size_t *out_len) {
   CBS extensions;
@@ -1206,7 +1205,7 @@ static int ext_ticket_parse_serverhello(SSL *ssl, uint8_t *out_alert,
 
 static int ext_ticket_parse_clienthello(SSL *ssl, uint8_t *out_alert, CBS *contents) {
   /* This function isn't used because the ticket extension from the client is
-   * handled in ssl_session.c. */
+   * handled in ssl_sess.c. */
   return 1;
 }
 
@@ -1375,7 +1374,6 @@ static void ext_npn_init(SSL *ssl) {
 static int ext_npn_add_clienthello(SSL *ssl, CBB *out) {
   if (ssl->s3->initial_handshake_complete ||
       ssl->ctx->next_proto_select_cb == NULL ||
-      (ssl->options & SSL_OP_DISABLE_NPN) ||
       SSL_IS_DTLS(ssl)) {
     return 1;
   }
@@ -1400,7 +1398,6 @@ static int ext_npn_parse_serverhello(SSL *ssl, uint8_t *out_alert,
   assert(!ssl->s3->initial_handshake_complete);
   assert(!SSL_IS_DTLS(ssl));
   assert(ssl->ctx->next_proto_select_cb != NULL);
-  assert(!(ssl->options & SSL_OP_DISABLE_NPN));
 
   if (ssl->s3->alpn_selected != NULL) {
     /* NPN and ALPN may not be negotiated in the same connection. */
@@ -2231,50 +2228,55 @@ int SSL_extension_supported(unsigned extension_value) {
          tls_extension_find(&index, extension_value) != NULL;
 }
 
-int ssl_add_clienthello_tlsext(SSL *ssl, CBB *out, size_t header_len) {
+/* header_len is the length of the ClientHello header written so far, used to
+ * compute padding. It does not include the record header. Pass 0 if no padding
+ * is to be done. */
+uint8_t *ssl_add_clienthello_tlsext(SSL *s, uint8_t *const buf,
+                                    uint8_t *const limit, size_t header_len) {
   /* don't add extensions for SSLv3 unless doing secure renegotiation */
-  if (ssl->client_version == SSL3_VERSION &&
-      !ssl->s3->send_connection_binding) {
-    return 1;
+  if (s->client_version == SSL3_VERSION && !s->s3->send_connection_binding) {
+    return buf;
   }
 
-  size_t orig_len = CBB_len(out);
-  CBB extensions;
-  if (!CBB_add_u16_length_prefixed(out, &extensions)) {
+  CBB cbb, extensions;
+  CBB_zero(&cbb);
+  if (!CBB_init_fixed(&cbb, buf, limit - buf) ||
+      !CBB_add_u16_length_prefixed(&cbb, &extensions)) {
     goto err;
   }
 
-  ssl->s3->tmp.extensions.sent = 0;
-  ssl->s3->tmp.custom_extensions.sent = 0;
+  s->s3->tmp.extensions.sent = 0;
+  s->s3->tmp.custom_extensions.sent = 0;
 
   size_t i;
   for (i = 0; i < kNumExtensions; i++) {
     if (kExtensions[i].init != NULL) {
-      kExtensions[i].init(ssl);
+      kExtensions[i].init(s);
     }
   }
 
   for (i = 0; i < kNumExtensions; i++) {
     const size_t len_before = CBB_len(&extensions);
-    if (!kExtensions[i].add_clienthello(ssl, &extensions)) {
+    if (!kExtensions[i].add_clienthello(s, &extensions)) {
       OPENSSL_PUT_ERROR(SSL, SSL_R_ERROR_ADDING_EXTENSION);
       ERR_add_error_dataf("extension: %u", (unsigned)kExtensions[i].value);
       goto err;
     }
 
     if (CBB_len(&extensions) != len_before) {
-      ssl->s3->tmp.extensions.sent |= (1u << i);
+      s->s3->tmp.extensions.sent |= (1u << i);
     }
   }
 
-  if (!custom_ext_add_clienthello(ssl, &extensions)) {
+  if (!custom_ext_add_clienthello(s, &extensions)) {
     goto err;
   }
 
-  if (!SSL_IS_DTLS(ssl)) {
-    header_len += CBB_len(&extensions) - orig_len;
+  if (header_len > 0) {
+    header_len += CBB_len(&extensions);
     if (header_len > 0xff && header_len < 0x200) {
-      /* Add padding to workaround bugs in F5 terminators. See RFC 7685.
+      /* Add padding to workaround bugs in F5 terminators. See
+       * https://tools.ietf.org/html/draft-agl-tls-padding-03
        *
        * NB: because this code works out the length of all existing extensions
        * it MUST always appear last. */
@@ -2299,58 +2301,80 @@ int ssl_add_clienthello_tlsext(SSL *ssl, CBB *out, size_t header_len) {
     }
   }
 
+  if (!CBB_flush(&cbb)) {
+    goto err;
+  }
+
+  uint8_t *ret = buf;
+  const size_t cbb_len = CBB_len(&cbb);
   /* If only two bytes have been written then the extensions are actually empty
    * and those two bytes are the zero length. In that case, we don't bother
    * sending the extensions length. */
-  if (CBB_len(&extensions) - orig_len == 2) {
-    CBB_discard_child(out);
+  if (cbb_len > 2) {
+    ret += cbb_len;
   }
 
-  return CBB_flush(out);
+  CBB_cleanup(&cbb);
+  return ret;
 
 err:
+  CBB_cleanup(&cbb);
   OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
-  return 0;
+  return NULL;
 }
 
-int ssl_add_serverhello_tlsext(SSL *ssl, CBB *out) {
-  const size_t orig_len = CBB_len(out);
+uint8_t *ssl_add_serverhello_tlsext(SSL *s, uint8_t *const buf,
+                                    uint8_t *const limit) {
+  /* don't add extensions for SSLv3, unless doing secure renegotiation */
+  if (s->version == SSL3_VERSION && !s->s3->send_connection_binding) {
+    return buf;
+  }
 
-  CBB extensions;
-  if (!CBB_add_u16_length_prefixed(out, &extensions)) {
+  CBB cbb, extensions;
+  CBB_zero(&cbb);
+  if (!CBB_init_fixed(&cbb, buf, limit - buf) ||
+      !CBB_add_u16_length_prefixed(&cbb, &extensions)) {
     goto err;
   }
 
   unsigned i;
   for (i = 0; i < kNumExtensions; i++) {
-    if (!(ssl->s3->tmp.extensions.received & (1u << i))) {
+    if (!(s->s3->tmp.extensions.received & (1u << i))) {
       /* Don't send extensions that were not received. */
       continue;
     }
 
-    if (!kExtensions[i].add_serverhello(ssl, &extensions)) {
+    if (!kExtensions[i].add_serverhello(s, &extensions)) {
       OPENSSL_PUT_ERROR(SSL, SSL_R_ERROR_ADDING_EXTENSION);
       ERR_add_error_dataf("extension: %u", (unsigned)kExtensions[i].value);
       goto err;
     }
   }
 
-  if (!custom_ext_add_serverhello(ssl, &extensions)) {
+  if (!custom_ext_add_serverhello(s, &extensions)) {
     goto err;
   }
 
+  if (!CBB_flush(&cbb)) {
+    goto err;
+  }
+
+  uint8_t *ret = buf;
+  const size_t cbb_len = CBB_len(&cbb);
   /* If only two bytes have been written then the extensions are actually empty
    * and those two bytes are the zero length. In that case, we don't bother
    * sending the extensions length. */
-  if (CBB_len(&extensions) - orig_len == 2) {
-    CBB_discard_child(out);
+  if (cbb_len > 2) {
+    ret += cbb_len;
   }
 
-  return CBB_flush(out);
+  CBB_cleanup(&cbb);
+  return ret;
 
 err:
+  CBB_cleanup(&cbb);
   OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
-  return 0;
+  return NULL;
 }
 
 static int ssl_scan_clienthello_tlsext(SSL *s, CBS *cbs, int *out_alert) {
@@ -2387,12 +2411,6 @@ static int ssl_scan_clienthello_tlsext(SSL *s, CBS *cbs, int *out_alert) {
           !CBS_get_u16_length_prefixed(&extensions, &extension)) {
         *out_alert = SSL_AD_DECODE_ERROR;
         return 0;
-      }
-
-      /* RFC 5746 made the existence of extensions in SSL 3.0 somewhat
-       * ambiguous. Ignore all but the renegotiation_info extension. */
-      if (s->version == SSL3_VERSION && type != TLSEXT_TYPE_renegotiate) {
-        continue;
       }
 
       unsigned ext_index;
@@ -2450,10 +2468,9 @@ int ssl_parse_clienthello_tlsext(SSL *s, CBS *cbs) {
   return 1;
 }
 
-OPENSSL_COMPILE_ASSERT(kNumExtensions <= sizeof(uint32_t) * 8, too_many_bits);
-
 static int ssl_scan_serverhello_tlsext(SSL *s, CBS *cbs, int *out_alert) {
   uint32_t received = 0;
+  assert(kNumExtensions <= sizeof(received) * 8);
 
   if (CBS_len(cbs) != 0) {
     /* Decode the extensions block and check it is valid. */
@@ -2588,6 +2605,10 @@ static int ssl_check_serverhello_tlsext(SSL *s) {
 
 int ssl_parse_serverhello_tlsext(SSL *s, CBS *cbs) {
   int alert = -1;
+  if (s->version < SSL3_VERSION) {
+    return 1;
+  }
+
   if (ssl_scan_serverhello_tlsext(s, cbs, &alert) <= 0) {
     ssl3_send_alert(s, SSL3_AL_FATAL, alert);
     return 0;

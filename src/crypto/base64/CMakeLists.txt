@@ -17,4 +17,3 @@ add_executable(
 )
 
 target_link_libraries(base64_test crypto)
-add_dependencies(all_tests base64_test)

@@ -208,9 +208,9 @@ static long fd_ctrl(BIO *b, int cmd, long num, void *ptr) {
         if (ip != NULL) {
           *ip = b->num;
         }
-        return b->num;
+        return 1;
       } else {
-        ret = -1;
+        ret = 0;
       }
       break;
     case BIO_CTRL_GET_CLOSE:

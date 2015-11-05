@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package runner
+package main
 
 import (
 	"bytes"
@@ -356,10 +356,6 @@ Curves:
 	// renegotiating.
 	if c.cipherSuite != nil && len(hs.clientHello.sessionId) > 0 && c.config.Bugs.FailIfResumeOnRenego {
 		return false, errors.New("tls: offered resumption on renegotiation")
-	}
-
-	if c.config.Bugs.FailIfSessionOffered && (len(hs.clientHello.sessionTicket) > 0 || len(hs.clientHello.sessionId) > 0) {
-		return false, errors.New("tls: client offered a session ticket or ID")
 	}
 
 	if hs.checkForResumption() {
@@ -870,12 +866,10 @@ func (hs *serverHandshakeState) sendSessionTicket() error {
 
 	m := new(newSessionTicketMsg)
 
-	if !c.config.Bugs.SendEmptySessionTicket {
-		var err error
-		m.ticket, err = c.encryptTicket(&state)
-		if err != nil {
-			return err
-		}
+	var err error
+	m.ticket, err = c.encryptTicket(&state)
+	if err != nil {
+		return err
 	}
 
 	hs.writeServerHash(m.marshal())

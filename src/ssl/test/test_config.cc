@@ -76,8 +76,10 @@ const Flag<bool> kBoolFlags[] = {
   { "-fail-second-ddos-callback", &TestConfig::fail_second_ddos_callback },
   { "-handshake-never-done", &TestConfig::handshake_never_done },
   { "-use-export-context", &TestConfig::use_export_context },
+  { "-reject-peer-renegotiations", &TestConfig::reject_peer_renegotiations },
   { "-no-legacy-server-connect", &TestConfig::no_legacy_server_connect },
   { "-tls-unique", &TestConfig::tls_unique },
+  { "-use-async-private-key", &TestConfig::use_async_private_key },
   { "-expect-ticket-renewal", &TestConfig::expect_ticket_renewal },
   { "-expect-no-session", &TestConfig::expect_no_session },
   { "-use-ticket-callback", &TestConfig::use_ticket_callback },
@@ -93,10 +95,7 @@ const Flag<bool> kBoolFlags[] = {
   { "-microsoft-big-sslv3-buffer", &TestConfig::microsoft_big_sslv3_buffer },
   { "-verify-fail", &TestConfig::verify_fail },
   { "-verify-peer", &TestConfig::verify_peer },
-  { "-expect-verify-result", &TestConfig::expect_verify_result },
-  { "-renegotiate-once", &TestConfig::renegotiate_once },
-  { "-renegotiate-freely", &TestConfig::renegotiate_freely },
-  { "-disable-npn", &TestConfig::disable_npn },
+  { "-expect-verify-result", &TestConfig::expect_verify_result }
 };
 
 const Flag<std::string> kStringFlags[] = {
@@ -139,7 +138,6 @@ const Flag<int> kIntFlags[] = {
   { "-max-version", &TestConfig::max_version },
   { "-mtu", &TestConfig::mtu },
   { "-export-keying-material", &TestConfig::export_keying_material },
-  { "-expect-total-renegotiations", &TestConfig::expect_total_renegotiations },
 };
 
 }  // namespace

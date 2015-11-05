@@ -56,7 +56,6 @@
 
 #include <openssl/rsa.h>
 
-#include <limits.h>
 #include <string.h>
 
 #include <openssl/bn.h>
@@ -100,7 +99,6 @@ RSA *RSA_new_method(const ENGINE *engine) {
   CRYPTO_MUTEX_init(&rsa->lock);
 
   if (!CRYPTO_new_ex_data(&g_ex_data_class, rsa, &rsa->ex_data)) {
-    CRYPTO_MUTEX_cleanup(&rsa->lock);
     METHOD_unref(rsa->meth);
     OPENSSL_free(rsa);
     return NULL;
@@ -108,7 +106,6 @@ RSA *RSA_new_method(const ENGINE *engine) {
 
   if (rsa->meth->init && !rsa->meth->init(rsa)) {
     CRYPTO_free_ex_data(&g_ex_data_class, rsa, &rsa->ex_data);
-    CRYPTO_MUTEX_cleanup(&rsa->lock);
     METHOD_unref(rsa->meth);
     OPENSSL_free(rsa);
     return NULL;
@@ -201,7 +198,7 @@ int RSA_encrypt(RSA *rsa, size_t *out_len, uint8_t *out, size_t max_out,
                                     padding);
 }
 
-int RSA_public_encrypt(size_t flen, const uint8_t *from, uint8_t *to, RSA *rsa,
+int RSA_public_encrypt(int flen, const uint8_t *from, uint8_t *to, RSA *rsa,
                        int padding) {
   size_t out_len;
 
@@ -209,10 +206,6 @@ int RSA_public_encrypt(size_t flen, const uint8_t *from, uint8_t *to, RSA *rsa,
     return -1;
   }
 
-  if (out_len > INT_MAX) {
-    OPENSSL_PUT_ERROR(RSA, ERR_R_OVERFLOW);
-    return -1;
-  }
   return out_len;
 }
 
@@ -226,7 +219,7 @@ int RSA_sign_raw(RSA *rsa, size_t *out_len, uint8_t *out, size_t max_out,
                                      padding);
 }
 
-int RSA_private_encrypt(size_t flen, const uint8_t *from, uint8_t *to, RSA *rsa,
+int RSA_private_encrypt(int flen, const uint8_t *from, uint8_t *to, RSA *rsa,
                         int padding) {
   size_t out_len;
 
@@ -234,10 +227,6 @@ int RSA_private_encrypt(size_t flen, const uint8_t *from, uint8_t *to, RSA *rsa,
     return -1;
   }
 
-  if (out_len > INT_MAX) {
-    OPENSSL_PUT_ERROR(RSA, ERR_R_OVERFLOW);
-    return -1;
-  }
   return out_len;
 }
 
@@ -251,7 +240,7 @@ int RSA_decrypt(RSA *rsa, size_t *out_len, uint8_t *out, size_t max_out,
                                     padding);
 }
 
-int RSA_private_decrypt(size_t flen, const uint8_t *from, uint8_t *to, RSA *rsa,
+int RSA_private_decrypt(int flen, const uint8_t *from, uint8_t *to, RSA *rsa,
                         int padding) {
   size_t out_len;
 
@@ -259,10 +248,6 @@ int RSA_private_decrypt(size_t flen, const uint8_t *from, uint8_t *to, RSA *rsa,
     return -1;
   }
 
-  if (out_len > INT_MAX) {
-    OPENSSL_PUT_ERROR(RSA, ERR_R_OVERFLOW);
-    return -1;
-  }
   return out_len;
 }
 
@@ -276,7 +261,7 @@ int RSA_verify_raw(RSA *rsa, size_t *out_len, uint8_t *out, size_t max_out,
                                        padding);
 }
 
-int RSA_public_decrypt(size_t flen, const uint8_t *from, uint8_t *to, RSA *rsa,
+int RSA_public_decrypt(int flen, const uint8_t *from, uint8_t *to, RSA *rsa,
                        int padding) {
   size_t out_len;
 
@@ -284,10 +269,6 @@ int RSA_public_decrypt(size_t flen, const uint8_t *from, uint8_t *to, RSA *rsa,
     return -1;
   }
 
-  if (out_len > INT_MAX) {
-    OPENSSL_PUT_ERROR(RSA, ERR_R_OVERFLOW);
-    return -1;
-  }
   return out_len;
 }
 

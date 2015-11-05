@@ -123,17 +123,6 @@
 #define RSAZ_ENABLED
 
 #include "rsaz_exp.h"
-
-void bn_mul_mont_gather5(BN_ULONG *rp, const BN_ULONG *ap, const void *table,
-                         const BN_ULONG *np, const BN_ULONG *n0, int num,
-                         int power);
-void bn_scatter5(const BN_ULONG *inp, size_t num, void *table, size_t power);
-void bn_gather5(BN_ULONG *out, size_t num, void *table, size_t power);
-void bn_power5(BN_ULONG *rp, const BN_ULONG *ap, const void *table,
-               const BN_ULONG *np, const BN_ULONG *n0, int num, int power);
-int bn_from_montgomery(BN_ULONG *rp, const BN_ULONG *ap,
-                       const BN_ULONG *not_used, const BN_ULONG *np,
-                       const BN_ULONG *n0, int num);
 #endif
 
 int BN_exp(BIGNUM *r, const BIGNUM *a, const BIGNUM *p, BN_CTX *ctx) {
@@ -285,10 +274,10 @@ static int BN_div_recp(BIGNUM *dv, BIGNUM *rem, const BIGNUM *m,
     goto err;
   }
 
-  if (BN_ucmp(m, &recp->N) < 0) {
+  if (BN_ucmp(m, &(recp->N)) < 0) {
     BN_zero(d);
     if (!BN_copy(r, m)) {
-      goto err;
+      return 0;
     }
     BN_CTX_end(ctx);
     return 1;
@@ -1005,6 +994,19 @@ int BN_mod_exp_mont_consttime(BIGNUM *rr, const BIGNUM *a, const BIGNUM *p,
   /* Dedicated window==4 case improves 512-bit RSA sign by ~15%, but as
    * 512-bit RSA is hardly relevant, we omit it to spare size... */
   if (window == 5 && top > 1) {
+    void bn_mul_mont_gather5(BN_ULONG * rp, const BN_ULONG * ap,
+                             const void * table, const BN_ULONG * np,
+                             const BN_ULONG * n0, int num, int power);
+    void bn_scatter5(const BN_ULONG * inp, size_t num, void * table,
+                     size_t power);
+    void bn_gather5(BN_ULONG * out, size_t num, void * table, size_t power);
+    void bn_power5(BN_ULONG * rp, const BN_ULONG * ap, const void * table,
+                   const BN_ULONG * np, const BN_ULONG * n0, int num,
+                   int power);
+    int bn_from_montgomery(BN_ULONG * rp, const BN_ULONG * ap,
+                           const BN_ULONG * not_used, const BN_ULONG * np,
+                           const BN_ULONG * n0, int num);
+
     BN_ULONG *np = mont->N.d, *n0 = mont->n0, *np2;
 
     /* BN_to_montgomery can contaminate words above .top

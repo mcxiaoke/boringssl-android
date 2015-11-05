@@ -19,4 +19,3 @@ add_executable(
 )
 
 target_link_libraries(dsa_test crypto)
-add_dependencies(all_tests dsa_test)
