@@ -10,6 +10,7 @@ add_library(
   ec_key.c
   ec_montgomery.c
   oct.c
+  p224-64.c
   p256-64.c
   util-64.c
   simple.c
@@ -34,3 +35,4 @@ add_executable(
 
 target_link_libraries(example_mul crypto)
 target_link_libraries(ec_test crypto)
+add_dependencies(all_tests example_mul ec_test)

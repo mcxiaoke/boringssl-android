@@ -42,6 +42,8 @@ type HeaderFile struct {
 	// is a separate paragraph.
 	Preamble []string
 	Sections []HeaderSection
+	// AllDecls maps all decls to their URL fragments.
+	AllDecls map[string]string
 }
 
 type HeaderSection struct {
@@ -237,6 +239,10 @@ func sanitizeAnchor(name string) string {
 	return strings.Replace(name, " ", "-", -1)
 }
 
+func isPrivateSection(name string) bool {
+	return strings.HasPrefix(name, "Private functions") || strings.HasPrefix(name, "Private structures") || strings.Contains(name, "(hidden)")
+}
+
 func (config *Config) parseHeader(path string) (*HeaderFile, error) {
 	headerPath := filepath.Join(config.BaseDirectory, path)
 
@@ -278,7 +284,8 @@ func (config *Config) parseHeader(path string) (*HeaderFile, error) {
 	lines = lines[2:]
 
 	header := &HeaderFile{
-		Name: filepath.Base(path),
+		Name:     filepath.Base(path),
+		AllDecls: make(map[string]string),
 	}
 
 	for i, line := range lines {
@@ -341,7 +348,7 @@ func (config *Config) parseHeader(path string) (*HeaderFile, error) {
 				}
 
 				section.Preamble = comment
-				section.IsPrivate = len(comment) > 0 && strings.HasPrefix(comment[0], "Private functions")
+				section.IsPrivate = len(comment) > 0 && isPrivateSection(comment[0])
 				section.Anchor = anchor
 				lines = rest[1:]
 				lineNo = restLineNo + 1
@@ -387,6 +394,8 @@ func (config *Config) parseHeader(path string) (*HeaderFile, error) {
 				// duplicate table-of-contents entries.
 				allAnchors[anchor] = struct{}{}
 
+				header.AllDecls[name] = anchor
+
 				section.Decls = append(section.Decls, HeaderDecl{
 					Comment: comment,
 					Name:    name,
@@ -422,7 +431,7 @@ func firstSentence(paragraphs []string) string {
 	return s
 }
 
-func markupPipeWords(s string) template.HTML {
+func markupPipeWords(allDecls map[string]string, s string) template.HTML {
 	ret := ""
 
 	for {
@@ -438,7 +447,14 @@ func markupPipeWords(s string) template.HTML {
 		j := strings.Index(s, " ")
 		if i > 0 && (j == -1 || j > i) {
 			ret += "<tt>"
+			anchor, isLink := allDecls[s[:i]]
+			if isLink {
+				ret += fmt.Sprintf("<a href=\"%s\">", template.HTMLEscapeString(anchor))
+			}
 			ret += s[:i]
+			if isLink {
+				ret += "</a>"
+			}
 			ret += "</tt>"
 			s = s[i+1:]
 		} else {
@@ -456,6 +472,11 @@ again:
 	if end > 0 {
 		end += start
 		w := strings.ToLower(string(s[start:end]))
+		// The first word was already marked up as an HTML tag. Don't
+		// mark it up further.
+		if strings.ContainsRune(w, '<') {
+			return s
+		}
 		if w == "a" || w == "an" {
 			start = end + 1
 			goto again
@@ -476,10 +497,12 @@ func newlinesToBR(html template.HTML) template.HTML {
 }
 
 func generate(outPath string, config *Config) (map[string]string, error) {
+	allDecls := make(map[string]string)
+
 	headerTmpl := template.New("headerTmpl")
 	headerTmpl.Funcs(template.FuncMap{
 		"firstSentence":   firstSentence,
-		"markupPipeWords": markupPipeWords,
+		"markupPipeWords": func(s string) template.HTML { return markupPipeWords(allDecls, s) },
 		"markupFirstWord": markupFirstWord,
 		"newlinesToBR":    newlinesToBR,
 	})
@@ -510,23 +533,19 @@ func generate(outPath string, config *Config) (map[string]string, error) {
 
     {{range .Sections}}
       {{if not .IsPrivate}}
-        <div class="section">
+        <div class="section" {{if .Anchor}}id="{{.Anchor}}"{{end}}>
         {{if .Preamble}}
           <div class="sectionpreamble">
-          <a{{if .Anchor}} name="{{.Anchor}}"{{end}}>
           {{range .Preamble}}<p>{{. | html | markupPipeWords}}</p>{{end}}
-          </a>
           </div>
         {{end}}
 
         {{range .Decls}}
-          <div class="decl">
-          <a{{if .Anchor}} name="{{.Anchor}}"{{end}}>
+          <div class="decl" {{if .Anchor}}id="{{.Anchor}}"{{end}}>
           {{range .Comment}}
             <p>{{. | html | markupPipeWords | newlinesToBR | markupFirstWord}}</p>
           {{end}}
           <pre>{{.Decl}}</pre>
-          </a>
           </div>
         {{end}}
         </div>
@@ -540,6 +559,7 @@ func generate(outPath string, config *Config) (map[string]string, error) {
 	}
 
 	headerDescriptions := make(map[string]string)
+	var headers []*HeaderFile
 
 	for _, section := range config.Sections {
 		for _, headerPath := range section.Headers {
@@ -548,15 +568,23 @@ func generate(outPath string, config *Config) (map[string]string, error) {
 				return nil, errors.New("while parsing " + headerPath + ": " + err.Error())
 			}
 			headerDescriptions[header.Name] = firstSentence(header.Preamble)
-			filename := filepath.Join(outPath, header.Name+".html")
-			file, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
-			if err != nil {
-				panic(err)
+			headers = append(headers, header)
+
+			for name, anchor := range header.AllDecls {
+				allDecls[name] = fmt.Sprintf("%s#%s", header.Name+".html", anchor)
 			}
-			defer file.Close()
-			if err := headerTmpl.Execute(file, header); err != nil {
-				return nil, err
-			}
+		}
+	}
+
+	for _, header := range headers {
+		filename := filepath.Join(outPath, header.Name+".html")
+		file, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
+		if err != nil {
+			panic(err)
+		}
+		defer file.Close()
+		if err := headerTmpl.Execute(file, header); err != nil {
+			return nil, err
 		}
 	}
 

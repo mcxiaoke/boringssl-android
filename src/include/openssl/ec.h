@@ -87,7 +87,7 @@ typedef enum {
 	/** the point is encoded as z||x, where the octet z specifies 
 	 *  which solution of the quadratic equation y is  */
 	POINT_CONVERSION_COMPRESSED = 2,
-	/** the point is encoded as z||x||y, where z is the octet 0x02  */
+	/** the point is encoded as z||x||y, where z is the octet 0x04  */
 	POINT_CONVERSION_UNCOMPRESSED = 4
 } point_conversion_form_t;
 
@@ -144,7 +144,7 @@ OPENSSL_EXPORT int EC_GROUP_get_curve_name(const EC_GROUP *group);
 
 /* EC_GROUP_get_degree returns the number of bits needed to represent an
  * element of the field underlying |group|. */
-OPENSSL_EXPORT int EC_GROUP_get_degree(const EC_GROUP *group);
+OPENSSL_EXPORT unsigned EC_GROUP_get_degree(const EC_GROUP *group);
 
 /* EC_GROUP_precompute_mult precomputes multiplies of the generator in order to
  * speed up operations that involve calculating generator multiples. It returns
@@ -325,9 +325,7 @@ OPENSSL_EXPORT void EC_GROUP_set_point_conversion_form(
 
 
 /* Old code expects to get EC_KEY from ec.h. */
-#if !defined(OPENSSL_HEADER_EC_KEY_H)
 #include <openssl/ec_key.h>
-#endif
 
 
 #if defined(__cplusplus)
