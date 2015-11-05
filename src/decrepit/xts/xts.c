@@ -52,8 +52,7 @@
 
 #include <openssl/aes.h>
 #include <openssl/cipher.h>
-
-#include "../crypto/modes/internal.h"
+#include <openssl/modes.h>
 
 
 #if defined(OPENSSL_X86_64) || defined(OPENSSL_X86) || defined(OPENSSL_AARCH64)

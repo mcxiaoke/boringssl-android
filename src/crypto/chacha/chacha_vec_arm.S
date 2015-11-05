@@ -23,7 +23,7 @@
 #     /opt/gcc-linaro-4.9-2014.11-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc -O3 -mcpu=cortex-a8 -mfpu=neon -fpic -DASM_GEN -I ../../include -S chacha_vec.c -o -
 
 #if !defined(OPENSSL_NO_ASM)
-#if defined(__arm__)
+#if defined(__arm__) || defined(__aarch64__)
 
 	.syntax unified
 	.cpu cortex-a8
@@ -60,138 +60,137 @@
 	.thumb_func
 	.type	CRYPTO_chacha_20_neon, %function
 CRYPTO_chacha_20_neon:
-	@ args = 8, pretend = 0, frame = 160
+	@ args = 8, pretend = 0, frame = 152
 	@ frame_needed = 1, uses_anonymous_args = 0
 	push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
-	mov	r9, r3
+	mov	r8, r3
 	vpush.64	{d8, d9, d10, d11, d12, d13, d14, d15}
-	mov	r10, r2
+	mov	r9, r2
 	ldr	r4, .L91+16
-	mov	fp, r1
-	mov	r8, r9
+	mov	fp, r0
+	mov	r10, r1
+	mov	lr, r8
 .LPIC16:
 	add	r4, pc
-	sub	sp, sp, #164
+	sub	sp, sp, #156
 	add	r7, sp, #0
 	sub	sp, sp, #112
-	add	lr, r7, #148
-	str	r0, [r7, #80]
+	add	r6, r7, #144
+	str	r0, [r7, #88]
 	str	r1, [r7, #12]
 	str	r2, [r7, #8]
 	ldmia	r4, {r0, r1, r2, r3}
 	add	r4, sp, #15
 	bic	r4, r4, #15
-	ldr	r6, [r7, #264]
-	str	r4, [r7, #88]
+	ldr	ip, [r7, #256]
+	str	r4, [r7, #84]
 	mov	r5, r4
 	adds	r4, r4, #64
-	add	ip, r5, #80
-	str	r9, [r7, #56]
+	adds	r5, r5, #80
+	str	r8, [r7, #68]
 	stmia	r4, {r0, r1, r2, r3}
 	movw	r4, #43691
-	ldr	r0, [r6]	@ unaligned
+	ldr	r0, [ip]	@ unaligned
 	movt	r4, 43690
-	ldr	r1, [r6, #4]	@ unaligned
-	ldr	r2, [r6, #8]	@ unaligned
-	ldr	r3, [r9, #12]	@ unaligned
-	str	ip, [r7, #84]
-	stmia	lr!, {r0, r1, r2}
-	mov	lr, ip
-	ldr	r1, [r9, #4]	@ unaligned
-	ldr	r2, [r9, #8]	@ unaligned
-	ldr	r0, [r9]	@ unaligned
-	vldr	d24, [r5, #64]
-	vldr	d25, [r5, #72]
-	umull	r4, r5, r10, r4
-	stmia	ip!, {r0, r1, r2, r3}
-	ldr	r0, [r8, #16]!	@ unaligned
-	ldr	r2, [r7, #88]
-	ldr	r4, [r7, #268]
-	ldr	r1, [r8, #4]	@ unaligned
+	ldr	r1, [ip, #4]	@ unaligned
+	ldr	r3, [r7, #84]
+	ldr	r2, [r8, #8]	@ unaligned
+	mov	r8, #0
+	stmia	r6!, {r0, r1}
+	mov	r6, r5
+	ldr	r1, [lr, #4]	@ unaligned
+	ldr	r0, [lr]	@ unaligned
+	vldr	d24, [r3, #64]
+	vldr	d25, [r3, #72]
+	ldr	r3, [lr, #12]	@ unaligned
+	str	r5, [r7, #80]
+	stmia	r5!, {r0, r1, r2, r3}
+	ldr	r0, [lr, #16]!	@ unaligned
+	ldr	r2, [r7, #84]
+	umull	r4, r5, r9, r4
 	vldr	d26, [r2, #80]
 	vldr	d27, [r2, #88]
-	ldr	r3, [r8, #12]	@ unaligned
-	ldr	r2, [r8, #8]	@ unaligned
-	stmia	lr!, {r0, r1, r2, r3}
-	ldr	r3, [r6]
-	ldr	r1, [r6, #4]
-	ldr	r6, [r6, #8]
-	str	r3, [r7, #68]
-	str	r3, [r7, #132]
+	ldr	r1, [lr, #4]	@ unaligned
+	ldr	r2, [lr, #8]	@ unaligned
+	ldr	r3, [lr, #12]	@ unaligned
+	ldr	r4, [r7, #260]
+	stmia	r6!, {r0, r1, r2, r3}
+	ldr	r3, [ip]
+	ldr	r1, [r7, #84]
+	ldr	r2, [ip, #4]
+	str	r3, [r7, #64]
+	vldr	d28, [r1, #80]
+	vldr	d29, [r1, #88]
+	str	r3, [r7, #136]
 	lsrs	r3, r5, #7
-	str	r6, [r7, #140]
-	str	r6, [r7, #60]
-	ldr	r6, [r7, #88]
 	str	r4, [r7, #128]
-	str	r1, [r7, #136]
-	str	r1, [r7, #64]
-	vldr	d28, [r6, #80]
-	vldr	d29, [r6, #88]
+	str	r2, [r7, #140]
+	str	r8, [r7, #132]
+	str	r2, [r7, #60]
 	vldr	d22, [r7, #128]
 	vldr	d23, [r7, #136]
 	beq	.L26
-	mov	r5, r6
 	lsls	r2, r3, #8
+	ldr	r5, [r1, #64]
 	sub	r3, r2, r3, lsl #6
-	ldr	r2, [r5, #68]
-	ldr	r6, [r6, #64]
+	ldr	r2, [r1, #68]
 	vldr	d0, .L91
 	vldr	d1, .L91+8
-	str	r2, [r7, #48]
-	ldr	r2, [r5, #72]
+	adds	r4, r4, #2
+	str	r5, [r7, #56]
+	str	r2, [r7, #52]
+	ldr	r5, [r1, #72]
+	ldr	r2, [r1, #76]
 	str	r3, [r7, #4]
-	str	r6, [r7, #52]
+	str	r5, [r7, #48]
 	str	r2, [r7, #44]
-	adds	r2, r4, #2
-	str	r2, [r7, #72]
-	ldr	r2, [r5, #76]
-	str	fp, [r7, #76]
-	str	r2, [r7, #40]
-	ldr	r2, [r7, #80]
+	mov	r2, fp
+	str	r4, [r7, #72]
 	adds	r3, r2, r3
+	str	r10, [r7, #76]
 	str	r3, [r7, #16]
 .L4:
-	ldr	r5, [r7, #56]
-	add	r8, r7, #40
-	ldr	r4, [r7, #68]
+	ldr	r5, [r7, #68]
+	add	r8, r7, #44
+	ldr	r4, [r7, #72]
 	vadd.i32	q3, q11, q0
 	ldmia	r8, {r8, r9, r10, fp}
-	mov	r1, r5
-	ldr	r2, [r5, #4]
 	vmov	q8, q14  @ v4si
-	ldr	r3, [r5]
+	ldr	r2, [r5, #4]
 	vmov	q1, q13  @ v4si
-	ldr	r6, [r1, #28]
+	ldr	r3, [r5]
 	vmov	q9, q12  @ v4si
+	ldr	lr, [r5, #20]
+	vmov	q2, q11  @ v4si
 	mov	r0, r2
 	ldr	r2, [r5, #8]
-	str	r4, [r7, #112]
-	movs	r1, #10
-	ldr	r4, [r7, #72]
-	vmov	q2, q11  @ v4si
-	ldr	lr, [r5, #20]
-	vmov	q15, q14  @ v4si
 	str	r3, [r7, #108]
-	vmov	q5, q13  @ v4si
-	str	r2, [r7, #116]
-	vmov	q10, q12  @ v4si
-	ldr	r2, [r5, #12]
+	mov	r3, r5
 	ldr	ip, [r5, #16]
-	ldr	r3, [r7, #64]
+	vmov	q15, q14  @ v4si
+	mov	r1, r2
+	ldr	r2, [r5, #12]
 	ldr	r5, [r5, #24]
+	vmov	q5, q13  @ v4si
+	ldr	r6, [r3, #28]
+	vmov	q10, q12  @ v4si
+	ldr	r3, [r7, #64]
+	str	r5, [r7, #116]
+	movs	r5, #10
 	str	r6, [r7, #120]
-	str	r1, [r7, #92]
+	str	r4, [r7, #112]
 	ldr	r6, [r7, #60]
-	str	r4, [r7, #100]
-	ldr	r1, [r7, #116]
-	ldr	r4, [r7, #108]
 	str	r8, [r7, #96]
 	mov	r8, r10
-	str	lr, [r7, #104]
+	ldr	r4, [r7, #108]
 	mov	r10, r9
+	ldr	r9, [r7, #116]
+	str	lr, [r7, #104]
 	mov	lr, r3
-	mov	r9, r5
+	str	r5, [r7, #92]
+	movs	r5, #0
 	str	r6, [r7, #124]
+	str	r5, [r7, #100]
 	b	.L92
 .L93:
 	.align	3
@@ -214,24 +213,25 @@ CRYPTO_chacha_20_neon:
 	str	r5, [r7, #116]
 	add	r10, r10, r1
 	vrev32.16	q3, q3
-	str	r6, [r7, #108]
+	eor	lr, lr, r10
 	vadd.i32	q8, q8, q3
 	vrev32.16	q2, q2
 	vadd.i32	q15, q15, q2
 	mov	fp, r3
-	ldr	r3, [r7, #100]
+	ldr	r3, [r7, #112]
 	veor	q4, q8, q1
+	str	r6, [r7, #112]
 	veor	q6, q15, q5
-	add	fp, fp, r2
 	eors	r3, r3, r5
 	mov	r5, r6
-	ldr	r6, [r7, #112]
+	ldr	r6, [r7, #100]
 	vshl.i32	q1, q4, #12
 	vshl.i32	q5, q6, #12
-	ror	r3, r3, #16
+	add	fp, fp, r2
 	eors	r6, r6, r5
-	eor	lr, lr, r10
+	ror	r3, r3, #16
 	vsri.32	q1, q4, #20
+	ror	lr, lr, #16
 	mov	r5, r6
 	ldr	r6, [r7, #124]
 	vsri.32	q5, q6, #20
@@ -239,26 +239,25 @@ CRYPTO_chacha_20_neon:
 	eor	r6, r6, fp
 	ror	r5, r5, #16
 	vadd.i32	q9, q9, q1
-	ror	lr, lr, #16
+	add	r9, r9, lr
 	ror	r3, r6, #16
 	ldr	r6, [r7, #124]
 	vadd.i32	q10, q10, q5
-	add	r9, r9, lr
+	str	r3, [r7, #108]
 	veor	q4, q9, q3
 	add	ip, ip, r6
 	ldr	r6, [r7, #104]
 	veor	q6, q10, q2
 	eor	r4, ip, r4
-	str	r3, [r7, #104]
-	vshl.i32	q3, q4, #8
 	eor	r1, r9, r1
+	vshl.i32	q3, q4, #8
 	mov	r8, r6
 	ldr	r6, [r7, #120]
 	vshl.i32	q2, q6, #8
 	ror	r4, r4, #20
 	add	r6, r6, r3
 	vsri.32	q3, q4, #24
-	str	r6, [r7, #100]
+	str	r6, [r7, #104]
 	eors	r2, r2, r6
 	ldr	r6, [r7, #116]
 	vsri.32	q2, q6, #24
@@ -269,7 +268,7 @@ CRYPTO_chacha_20_neon:
 	eor	r0, r8, r0
 	vadd.i32	q15, q15, q2
 	mov	r3, r6
-	ldr	r6, [r7, #108]
+	ldr	r6, [r7, #112]
 	veor	q6, q4, q1
 	ror	r0, r0, #20
 	str	r3, [r7, #112]
@@ -286,7 +285,7 @@ CRYPTO_chacha_20_neon:
 	ror	r1, r1, #20
 	eors	r5, r5, r6
 	vsri.32	q8, q6, #25
-	ldr	r6, [r7, #104]
+	ldr	r6, [r7, #108]
 	ror	r3, r3, #24
 	ror	r5, r5, #24
 	vsri.32	q1, q5, #25
@@ -298,7 +297,7 @@ CRYPTO_chacha_20_neon:
 	vext.32	q8, q8, q8, #1
 	str	ip, [r7, #124]
 	add	ip, r5, r8
-	ldr	r5, [r7, #100]
+	ldr	r5, [r7, #104]
 	eor	lr, r10, lr
 	ror	r6, r6, #24
 	vext.32	q1, q1, q1, #1
@@ -411,7 +410,7 @@ CRYPTO_chacha_20_neon:
 	veor	q6, q15, q1
 	ldr	r3, [r7, #116]
 	vshl.i32	q1, q4, #7
-	str	r2, [r7, #100]
+	str	r2, [r7, #112]
 	add	r3, r3, r2
 	str	r3, [r7, #120]
 	vshl.i32	q5, q6, #7
@@ -424,7 +423,7 @@ CRYPTO_chacha_20_neon:
 	vsri.32	q5, q6, #25
 	ldr	r3, [r7, #92]
 	ror	r4, r4, #25
-	str	r6, [r7, #112]
+	str	r6, [r7, #100]
 	ror	r0, r0, #25
 	subs	r3, r3, #1
 	str	r5, [r7, #104]
@@ -438,325 +437,308 @@ CRYPTO_chacha_20_neon:
 	vext.32	q5, q5, q5, #3
 	vext.32	q1, q1, q1, #3
 	bne	.L3
-	ldr	r3, [r7, #84]
+	ldr	r3, [r7, #80]
 	vadd.i32	q4, q12, q10
-	str	r9, [r7, #92]
+	str	r9, [r7, #116]
 	mov	r9, r10
 	mov	r10, r8
 	ldr	r8, [r7, #96]
 	str	lr, [r7, #96]
 	mov	lr, r5
-	ldr	r5, [r7, #52]
+	ldr	r5, [r7, #56]
 	vadd.i32	q5, q13, q5
 	ldr	r6, [r7, #76]
 	vadd.i32	q15, q14, q15
 	add	fp, fp, r5
-	ldr	r5, [r7, #48]
-	str	r3, [r7, #104]
-	vadd.i32	q7, q14, q8
-	ldr	r3, [r6, #12]	@ unaligned
-	add	r10, r10, r5
-	str	r0, [r7, #36]
-	vadd.i32	q2, q11, q2
-	ldr	r0, [r6]	@ unaligned
-	vadd.i32	q6, q12, q9
-	ldr	r5, [r7, #104]
-	vadd.i32	q1, q13, q1
-	str	r1, [r7, #116]
-	vadd.i32	q11, q11, q0
-	ldr	r1, [r6, #4]	@ unaligned
-	str	r2, [r7, #32]
-	vadd.i32	q3, q11, q3
-	ldr	r2, [r6, #8]	@ unaligned
-	vadd.i32	q11, q11, q0
+	ldr	r5, [r7, #52]
 	str	r4, [r7, #108]
-	ldr	r4, [r7, #100]
+	vadd.i32	q7, q14, q8
+	ldr	r4, [r7, #112]
+	add	r5, r10, r5
+	str	r3, [r7, #112]
+	vadd.i32	q2, q11, q2
+	ldr	r3, [r6, #12]	@ unaligned
+	vadd.i32	q6, q12, q9
+	str	r0, [r7, #92]
+	vadd.i32	q1, q13, q1
+	ldr	r0, [r6]	@ unaligned
 	vadd.i32	q11, q11, q0
+	str	r1, [r7, #40]
+	str	r2, [r7, #36]
+	vadd.i32	q3, q11, q3
+	ldr	r1, [r6, #4]	@ unaligned
+	vadd.i32	q11, q11, q0
+	ldr	r2, [r6, #8]	@ unaligned
+	str	r5, [r7, #104]
+	vadd.i32	q11, q11, q0
+	ldr	r5, [r7, #112]
+	ldr	r10, [r7, #80]
 	stmia	r5!, {r0, r1, r2, r3}
-	ldr	r2, [r7, #88]
-	ldr	r3, [r7, #44]
-	ldr	r5, [r7, #84]
-	vldr	d20, [r2, #80]
-	vldr	d21, [r2, #88]
-	add	r3, r9, r3
-	str	r3, [r7, #104]
-	veor	q10, q10, q4
-	ldr	r3, [r7, #40]
-	add	r3, r8, r3
-	str	r3, [r7, #100]
+	mov	r5, r10
+	ldr	r0, [r7, #84]
+	ldr	r2, [r7, #48]
 	ldr	r3, [r7, #72]
-	vstr	d20, [r2, #80]
-	vstr	d21, [r2, #88]
+	vldr	d20, [r0, #80]
+	vldr	d21, [r0, #88]
+	add	r9, r9, r2
+	veor	q10, q10, q4
+	ldr	r2, [r7, #44]
 	adds	r1, r4, r3
 	str	r1, [r7, #28]
+	add	r2, r8, r2
+	str	r2, [r7, #32]
+	vstr	d20, [r0, #80]
+	vstr	d21, [r0, #88]
 	ldmia	r5!, {r0, r1, r2, r3}
-	ldr	r4, [r7, #68]
-	ldr	r5, [r7, #112]
-	ldr	r8, [r7, #84]
-	add	r5, r5, r4
 	ldr	r4, [r7, #96]
-	str	r5, [r7, #24]
 	ldr	r5, [r7, #64]
 	add	r4, r4, r5
-	ldr	r5, [r7, #60]
+	ldr	r5, [r7, #124]
 	str	r4, [r7, #96]
-	ldr	r4, [r7, #124]
-	add	r4, r4, r5
-	str	r4, [r7, #20]
-	ldr	r4, [r7, #80]
-	mov	r5, r8
+	ldr	r4, [r7, #60]
+	add	r5, r5, r4
+	ldr	r4, [r7, #88]
+	str	r5, [r7, #24]
+	mov	r5, r10
 	str	r0, [r4]	@ unaligned
 	mov	r0, r4
 	str	r1, [r4, #4]	@ unaligned
-	mov	r4, r8
-	str	r2, [r0, #8]	@ unaligned
 	mov	r8, r0
+	str	r2, [r0, #8]	@ unaligned
+	mov	r4, r10
 	str	r3, [r0, #12]	@ unaligned
-	mov	r9, r4
 	ldr	r0, [r6, #16]!	@ unaligned
-	ldr	r3, [r6, #12]	@ unaligned
 	ldr	r1, [r6, #4]	@ unaligned
 	ldr	r2, [r6, #8]	@ unaligned
+	ldr	r3, [r6, #12]	@ unaligned
 	ldr	r6, [r7, #76]
 	stmia	r5!, {r0, r1, r2, r3}
-	mov	r5, r8
-	ldr	r3, [r7, #88]
+	mov	r5, r10
+	ldr	r3, [r7, #84]
 	vldr	d20, [r3, #80]
 	vldr	d21, [r3, #88]
 	veor	q10, q10, q5
 	vstr	d20, [r3, #80]
 	vstr	d21, [r3, #88]
 	ldmia	r4!, {r0, r1, r2, r3}
-	mov	r4, r9
+	mov	r4, r8
 	str	r0, [r8, #16]	@ unaligned
 	str	r1, [r8, #20]	@ unaligned
 	str	r2, [r8, #24]	@ unaligned
 	str	r3, [r8, #28]	@ unaligned
-	mov	r8, r5
+	mov	r8, r4
 	ldr	r0, [r6, #32]!	@ unaligned
-	mov	r5, r9
+	str	r10, [r7, #124]
 	ldr	r1, [r6, #4]	@ unaligned
 	ldr	r2, [r6, #8]	@ unaligned
 	ldr	r3, [r6, #12]	@ unaligned
 	ldr	r6, [r7, #76]
 	stmia	r5!, {r0, r1, r2, r3}
-	mov	r5, r8
-	ldr	r1, [r7, #88]
-	vldr	d16, [r1, #80]
-	vldr	d17, [r1, #88]
+	mov	r5, r10
+	ldr	r2, [r7, #84]
+	vldr	d16, [r2, #80]
+	vldr	d17, [r2, #88]
 	veor	q15, q8, q15
-	vstr	d30, [r1, #80]
-	vstr	d31, [r1, #88]
-	ldmia	r4!, {r0, r1, r2, r3}
-	mov	r4, r9
-	str	r0, [r8, #32]	@ unaligned
-	str	r1, [r8, #36]	@ unaligned
-	str	r2, [r8, #40]	@ unaligned
-	str	r3, [r8, #44]	@ unaligned
-	mov	r8, r5
+	vstr	d30, [r2, #80]
+	vstr	d31, [r2, #88]
+	ldmia	r10!, {r0, r1, r2, r3}
+	str	r0, [r4, #32]	@ unaligned
+	str	r1, [r4, #36]	@ unaligned
+	str	r2, [r4, #40]	@ unaligned
+	str	r3, [r4, #44]	@ unaligned
 	ldr	r0, [r6, #48]!	@ unaligned
 	ldr	r1, [r6, #4]	@ unaligned
 	ldr	r2, [r6, #8]	@ unaligned
 	ldr	r3, [r6, #12]	@ unaligned
 	ldr	r6, [r7, #76]
-	stmia	r4!, {r0, r1, r2, r3}
-	mov	r4, r9
-	ldr	r1, [r7, #88]
-	str	r9, [r7, #112]
+	stmia	r5!, {r0, r1, r2, r3}
+	ldr	r1, [r7, #84]
 	vldr	d18, [r1, #80]
 	vldr	d19, [r1, #88]
 	veor	q9, q9, q2
 	vstr	d18, [r1, #80]
 	vstr	d19, [r1, #88]
-	ldmia	r9!, {r0, r1, r2, r3}
-	str	r0, [r5, #48]	@ unaligned
-	str	r1, [r5, #52]	@ unaligned
-	str	r2, [r5, #56]	@ unaligned
-	str	r3, [r5, #60]	@ unaligned
+	ldr	r3, [r7, #112]
+	ldr	r5, [r7, #80]
+	mov	r10, r3
+	ldmia	r10!, {r0, r1, r2, r3}
+	str	r0, [r4, #48]	@ unaligned
+	str	r1, [r4, #52]	@ unaligned
+	str	r2, [r4, #56]	@ unaligned
+	str	r3, [r4, #60]	@ unaligned
 	ldr	r0, [r6, #64]!	@ unaligned
 	ldr	r1, [r6, #4]	@ unaligned
 	ldr	r2, [r6, #8]	@ unaligned
 	ldr	r3, [r6, #12]	@ unaligned
 	ldr	r6, [r7, #76]
-	mov	r9, r6
-	mov	r6, r4
-	stmia	r6!, {r0, r1, r2, r3}
-	mov	r6, r4
-	ldr	r1, [r7, #88]
+	stmia	r5!, {r0, r1, r2, r3}
+	ldr	r1, [r7, #84]
+	ldr	r3, [r7, #112]
+	ldr	r5, [r7, #80]
 	vldr	d18, [r1, #80]
 	vldr	d19, [r1, #88]
 	veor	q9, q9, q6
+	mov	r10, r3
+	str	r5, [r7, #20]
 	vstr	d18, [r1, #80]
 	vstr	d19, [r1, #88]
-	ldmia	r4!, {r0, r1, r2, r3}
-	mov	r4, r6
-	str	r3, [r5, #76]	@ unaligned
-	mov	r3, r9
-	str	r2, [r5, #72]	@ unaligned
-	str	r0, [r5, #64]	@ unaligned
-	str	r1, [r5, #68]	@ unaligned
-	mov	r5, r4
-	ldr	r0, [r3, #80]!	@ unaligned
-	mov	r9, r3
-	ldr	r1, [r9, #4]	@ unaligned
-	ldr	r2, [r9, #8]	@ unaligned
-	ldr	r3, [r9, #12]	@ unaligned
-	mov	r9, r4
+	ldmia	r10!, {r0, r1, r2, r3}
+	str	r1, [r4, #68]	@ unaligned
+	str	r2, [r4, #72]	@ unaligned
+	str	r3, [r4, #76]	@ unaligned
+	str	r0, [r4, #64]	@ unaligned
+	ldr	r0, [r6, #80]!	@ unaligned
+	ldr	r1, [r6, #4]	@ unaligned
+	ldr	r2, [r6, #8]	@ unaligned
+	ldr	r3, [r6, #12]	@ unaligned
 	ldr	r6, [r7, #76]
-	str	r9, [r7, #124]
 	stmia	r5!, {r0, r1, r2, r3}
-	mov	r5, r8
-	ldr	r1, [r7, #88]
+	ldr	r1, [r7, #84]
+	ldr	r3, [r7, #20]
+	ldr	r5, [r7, #80]
 	vldr	d18, [r1, #80]
 	vldr	d19, [r1, #88]
 	veor	q1, q9, q1
+	mov	r10, r3
 	vstr	d2, [r1, #80]
 	vstr	d3, [r1, #88]
-	ldmia	r4!, {r0, r1, r2, r3}
-	mov	r4, r9
-	str	r0, [r8, #80]	@ unaligned
-	str	r1, [r8, #84]	@ unaligned
-	str	r2, [r8, #88]	@ unaligned
-	str	r3, [r8, #92]	@ unaligned
+	ldmia	r10!, {r0, r1, r2, r3}
+	mov	r10, r5
+	str	r0, [r4, #80]	@ unaligned
+	str	r1, [r4, #84]	@ unaligned
+	str	r2, [r4, #88]	@ unaligned
+	str	r3, [r4, #92]	@ unaligned
 	ldr	r0, [r6, #96]!	@ unaligned
-	ldr	r3, [r6, #12]	@ unaligned
 	ldr	r1, [r6, #4]	@ unaligned
 	ldr	r2, [r6, #8]	@ unaligned
+	ldr	r3, [r6, #12]	@ unaligned
 	ldr	r6, [r7, #76]
-	stmia	r4!, {r0, r1, r2, r3}
-	mov	r4, r9
-	ldr	r3, [r7, #88]
+	stmia	r5!, {r0, r1, r2, r3}
+	mov	r5, r10
+	ldr	r3, [r7, #84]
 	vldr	d16, [r3, #80]
 	vldr	d17, [r3, #88]
 	veor	q8, q8, q7
 	vstr	d16, [r3, #80]
 	vstr	d17, [r3, #88]
-	ldmia	r9!, {r0, r1, r2, r3}
-	str	r0, [r5, #96]	@ unaligned
-	str	r1, [r5, #100]	@ unaligned
-	str	r2, [r5, #104]	@ unaligned
-	str	r3, [r5, #108]	@ unaligned
+	ldmia	r10!, {r0, r1, r2, r3}
+	str	r0, [r4, #96]	@ unaligned
+	str	r1, [r4, #100]	@ unaligned
+	str	r2, [r4, #104]	@ unaligned
+	str	r3, [r4, #108]	@ unaligned
 	ldr	r0, [r6, #112]!	@ unaligned
 	ldr	r1, [r6, #4]	@ unaligned
 	ldr	r2, [r6, #8]	@ unaligned
 	ldr	r3, [r6, #12]	@ unaligned
-	mov	r6, r4
-	stmia	r6!, {r0, r1, r2, r3}
 	mov	r6, r5
-	ldr	r3, [r7, #88]
+	stmia	r6!, {r0, r1, r2, r3}
+	ldr	r3, [r7, #84]
 	vldr	d16, [r3, #80]
 	vldr	d17, [r3, #88]
 	veor	q8, q8, q3
 	vstr	d16, [r3, #80]
 	vstr	d17, [r3, #88]
-	ldmia	r4!, {r0, r1, r2, r3}
-	mov	r4, r5
-	mov	r8, r4
-	str	r2, [r5, #120]	@ unaligned
-	ldr	r2, [r7, #76]
-	str	r0, [r5, #112]	@ unaligned
-	str	r1, [r5, #116]	@ unaligned
-	str	r3, [r5, #124]	@ unaligned
-	ldr	r3, [r2, #128]
-	ldr	r1, [r7, #104]
+	ldmia	r5!, {r0, r1, r2, r3}
+	str	r1, [r4, #116]	@ unaligned
+	ldr	r1, [r7, #76]
+	str	r0, [r4, #112]	@ unaligned
+	str	r2, [r4, #120]	@ unaligned
+	str	r3, [r4, #124]	@ unaligned
+	ldr	r3, [r1, #128]
+	ldr	r2, [r7, #104]
 	eor	r3, fp, r3
-	str	r3, [r5, #128]
-	ldr	r3, [r2, #132]
-	mov	r5, r2
-	eor	r3, r10, r3
-	str	r3, [r6, #132]
-	ldr	r3, [r2, #136]
-	mov	r6, r5
-	eors	r1, r1, r3
-	str	r1, [r8, #136]
-	ldr	r1, [r7, #56]
-	ldr	r3, [r2, #140]
-	ldr	r2, [r7, #100]
-	ldr	r0, [r7, #108]
-	eors	r3, r3, r2
-	str	r3, [r4, #140]
-	ldr	r3, [r1]
-	ldr	r2, [r5, #144]
-	mov	r8, r0
-	add	r8, r8, r3
-	mov	r5, r6
-	mov	r3, r8
+	str	r3, [r4, #128]
+	ldr	r3, [r1, #132]
 	eors	r2, r2, r3
-	str	r2, [r4, #144]
-	ldr	r3, [r6, #148]
-	ldr	r2, [r1, #4]
-	ldr	r6, [r7, #36]
-	add	r6, r6, r2
+	str	r2, [r8, #132]
+	ldr	r3, [r1, #136]
+	ldr	r5, [r7, #68]
+	ldr	r6, [r7, #32]
+	eor	r3, r9, r3
+	str	r3, [r4, #136]
+	ldr	r3, [r1, #140]
+	ldr	r0, [r7, #92]
 	eors	r3, r3, r6
-	mov	r6, r1
+	ldr	r6, [r7, #108]
+	str	r3, [r4, #140]
+	ldr	r3, [r5]
+	ldr	r2, [r1, #144]
+	add	r6, r6, r3
+	eors	r2, r2, r6
+	str	r2, [r4, #144]
+	ldr	r2, [r5, #4]
+	ldr	r3, [r1, #148]
+	add	r0, r0, r2
+	ldr	r6, [r7, #36]
+	eors	r3, r3, r0
+	ldr	r0, [r7, #40]
 	str	r3, [r4, #148]
-	ldr	r2, [r1, #8]
-	ldr	r1, [r7, #116]
-	ldr	r3, [r5, #152]
-	mov	r8, r1
-	add	r8, r8, r2
-	ldr	r1, [r7, #32]
-	mov	r2, r8
-	eors	r3, r3, r2
+	ldr	r2, [r5, #8]
+	ldr	r3, [r1, #152]
+	add	r0, r0, r2
+	eors	r3, r3, r0
 	str	r3, [r4, #152]
-	mov	r8, r4
-	ldr	r2, [r6, #12]
-	ldr	r3, [r5, #156]
-	add	r1, r1, r2
-	eors	r3, r3, r1
-	str	r3, [r4, #156]
-	ldr	r2, [r6, #16]
-	mov	r1, r4
-	ldr	r3, [r5, #160]
-	mov	r4, r5
+	ldr	r2, [r5, #12]
+	mov	r0, r4
+	ldr	r3, [r1, #156]
+	mov	r4, r1
+	add	r6, r6, r2
+	mov	r1, r0
+	eors	r3, r3, r6
+	str	r3, [r0, #156]
+	ldr	r2, [r5, #16]
+	ldr	r3, [r4, #160]
 	add	ip, ip, r2
-	mov	r5, r6
 	eor	r3, ip, r3
 	str	r3, [r1, #160]
-	ldr	r2, [r6, #20]
+	ldr	r2, [r5, #20]
 	ldr	r3, [r4, #164]
 	add	lr, lr, r2
-	ldr	r2, [r7, #92]
+	ldr	r2, [r7, #116]
 	eor	r3, lr, r3
 	str	r3, [r1, #164]
 	ldr	r6, [r5, #24]
 	mov	lr, r4
 	ldr	r3, [r4, #168]
 	add	r2, r2, r6
-	ldr	r6, [r7, #120]
+	mov	r6, r4
 	eors	r3, r3, r2
 	str	r3, [r1, #168]
 	ldr	r5, [r5, #28]
+	mov	r2, r1
 	ldr	r3, [r4, #172]
-	add	r6, r6, r5
-	eors	r3, r3, r6
-	str	r3, [r1, #172]
-	ldr	r4, [r4, #176]
-	ldr	r0, [r7, #28]
+	ldr	r0, [r7, #120]
+	add	r0, r0, r5
 	ldr	r5, [r7, #24]
-	eors	r4, r4, r0
-	str	r4, [r8, #176]
-	ldr	r0, [lr, #180]
-	ldr	r2, [r7, #96]
-	eors	r0, r0, r5
-	str	r0, [r8, #180]
-	ldr	r1, [lr, #184]
-	ldr	r4, [r7, #20]
-	eors	r1, r1, r2
-	str	r1, [r8, #184]
-	ldr	r2, [lr, #188]
-	add	r1, lr, #192
+	eors	r3, r3, r0
+	str	r3, [r1, #172]
 	ldr	r3, [r7, #72]
-	eors	r2, r2, r4
-	str	r2, [r8, #188]
-	ldr	r2, [r7, #16]
-	adds	r3, r3, #3
-	str	r3, [r7, #72]
-	mov	r3, r8
+	ldr	r4, [r4, #176]
+	ldr	r1, [r7, #28]
+	eors	r4, r4, r1
+	adds	r1, r3, #3
+	str	r4, [r2, #176]
+	ldr	r3, [r7, #100]
+	ldr	r0, [lr, #180]
+	str	r1, [r7, #72]
+	eors	r3, r3, r0
+	mov	r0, r3
+	mov	r3, r2
+	str	r0, [r2, #180]
 	adds	r3, r3, #192
+	ldr	r1, [lr, #184]
+	ldr	r2, [r7, #96]
+	eors	r1, r1, r2
+	str	r1, [r3, #-8]
+	ldr	r2, [lr, #188]
+	mov	r1, r6
+	adds	r1, r1, #192
 	str	r1, [r7, #76]
+	eors	r2, r2, r5
+	str	r2, [r3, #-4]
+	ldr	r2, [r7, #16]
+	str	r3, [r7, #88]
 	cmp	r2, r3
-	str	r3, [r7, #80]
 	bne	.L4
 	ldr	r3, [r7, #12]
 	ldr	r2, [r7, #4]
@@ -775,8 +757,8 @@ CRYPTO_chacha_20_neon:
 	beq	.L6
 	ldr	r5, [r7, #12]
 	ldr	r4, [r7, #16]
-	ldr	r6, [r7, #88]
-	ldr	lr, [r7, #84]
+	ldr	r6, [r7, #84]
+	ldr	lr, [r7, #80]
 	vldr	d30, .L94
 	vldr	d31, .L94+8
 	str	fp, [r7, #120]
@@ -982,7 +964,7 @@ CRYPTO_chacha_20_neon:
 	mov	r9, r5
 	bhi	.L88
 	vadd.i32	q12, q12, q10
-	ldr	r3, [r7, #88]
+	ldr	r3, [r7, #84]
 	vst1.64	{d24-d25}, [r3:128]
 .L14:
 	ldr	r3, [r7, #8]
@@ -1019,7 +1001,7 @@ CRYPTO_chacha_20_neon:
 	movcs	r1, ip
 	cmp	r1, #0
 	beq	.L17
-	ldr	r5, [r7, #88]
+	ldr	r5, [r7, #84]
 	cmp	r1, #1
 	ldrb	r0, [r0]	@ zero_extendqisi2
 	add	r3, r2, #1
@@ -1154,7 +1136,7 @@ CRYPTO_chacha_20_neon:
 	ldr	r5, [r7, #16]
 	cmp	r6, #1
 	add	r0, r1, r2
-	ldr	r1, [r7, #88]
+	ldr	r1, [r7, #84]
 	add	r1, r1, r2
 	vld1.64	{d18-d19}, [r0:64]
 	add	r2, r2, r5
@@ -1192,7 +1174,7 @@ CRYPTO_chacha_20_neon:
 	add	r3, r3, lr
 	beq	.L1
 .L19:
-	ldr	r4, [r7, #88]
+	ldr	r4, [r7, #84]
 	adds	r2, r3, #1
 	ldr	r1, [r7, #12]
 	cmp	r2, r9
@@ -1307,7 +1289,7 @@ CRYPTO_chacha_20_neon:
 	eor	r1, r1, r0
 	strb	r1, [r5, r2]
 	bls	.L1
-	ldr	r2, [r7, #88]
+	ldr	r2, [r7, #84]
 	ldrb	r1, [r2, r3]	@ zero_extendqisi2
 	ldr	r2, [r7, #12]
 	ldrb	r2, [r2, r3]	@ zero_extendqisi2
@@ -1315,7 +1297,7 @@ CRYPTO_chacha_20_neon:
 	ldr	r1, [r7, #16]
 	strb	r2, [r1, r3]
 .L1:
-	adds	r7, r7, #164
+	adds	r7, r7, #156
 	mov	sp, r7
 	@ sp needed
 	vldm	sp!, {d8-d15}
@@ -1323,7 +1305,7 @@ CRYPTO_chacha_20_neon:
 .L88:
 	ldr	r5, [r7, #12]
 	vadd.i32	q12, q12, q10
-	ldr	r4, [r7, #84]
+	ldr	r4, [r7, #80]
 	cmp	r9, #31
 	ldr	r0, [r5]	@ unaligned
 	ldr	r1, [r5, #4]	@ unaligned
@@ -1331,7 +1313,7 @@ CRYPTO_chacha_20_neon:
 	ldr	r2, [r5, #8]	@ unaligned
 	ldr	r3, [r5, #12]	@ unaligned
 	stmia	r6!, {r0, r1, r2, r3}
-	ldr	r2, [r7, #88]
+	ldr	r2, [r7, #84]
 	ldr	r6, [r7, #16]
 	vldr	d18, [r2, #80]
 	vldr	d19, [r2, #88]
@@ -1346,7 +1328,7 @@ CRYPTO_chacha_20_neon:
 	str	r3, [r6, #12]	@ unaligned
 	bhi	.L89
 	vadd.i32	q13, q13, q15
-	ldr	r3, [r7, #88]
+	ldr	r3, [r7, #84]
 	vstr	d26, [r3, #16]
 	vstr	d27, [r3, #24]
 	b	.L14
@@ -1355,7 +1337,7 @@ CRYPTO_chacha_20_neon:
 	ldr	r2, [r7, #12]
 	add	r2, r2, r9
 	mov	r5, r2
-	ldr	r2, [r7, #88]
+	ldr	r2, [r7, #84]
 	add	r2, r2, r3
 	mov	r3, r2
 .L24:
@@ -1365,18 +1347,17 @@ CRYPTO_chacha_20_neon:
 	eor	r2, r2, r1
 	strb	r2, [r4], #1
 	bne	.L24
-	adds	r7, r7, #164
+	adds	r7, r7, #156
 	mov	sp, r7
 	@ sp needed
 	vldm	sp!, {d8-d15}
 	pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
 .L26:
-	ldr	r3, [r7, #80]
-	str	r3, [r7, #16]
+	str	fp, [r7, #16]
 	b	.L2
 .L89:
 	mov	r3, r5
-	ldr	r4, [r7, #84]
+	ldr	r4, [r7, #80]
 	ldr	r0, [r3, #16]!	@ unaligned
 	add	lr, r1, #16
 	mov	r5, r1
@@ -1387,7 +1368,7 @@ CRYPTO_chacha_20_neon:
 	ldr	r2, [r3, #8]	@ unaligned
 	ldr	r3, [r3, #12]	@ unaligned
 	stmia	r6!, {r0, r1, r2, r3}
-	ldr	r2, [r7, #88]
+	ldr	r2, [r7, #84]
 	vldr	d18, [r2, #80]
 	vldr	d19, [r2, #88]
 	veor	q13, q9, q13
@@ -1400,16 +1381,16 @@ CRYPTO_chacha_20_neon:
 	str	r3, [lr, #12]	@ unaligned
 	bhi	.L90
 	vadd.i32	q8, q14, q8
-	ldr	r3, [r7, #88]
+	ldr	r3, [r7, #84]
 	vstr	d16, [r3, #32]
 	vstr	d17, [r3, #40]
 	b	.L14
 .L90:
 	ldr	r3, [r7, #12]
 	add	lr, r5, #32
-	ldr	r4, [r7, #84]
+	ldr	r4, [r7, #80]
 	vadd.i32	q8, q14, q8
-	ldr	r5, [r7, #88]
+	ldr	r5, [r7, #84]
 	vadd.i32	q11, q11, q3
 	ldr	r0, [r3, #32]!	@ unaligned
 	mov	r6, r4
@@ -1443,5 +1424,5 @@ CRYPTO_chacha_20_neon:
 	.ident	"GCC: (Linaro GCC 2014.11) 4.9.3 20141031 (prerelease)"
 	.section	.note.GNU-stack,"",%progbits
 
-#endif  /* __arm__ */
+#endif  /* __arm__ || __aarch64__ */
 #endif  /* !OPENSSL_NO_ASM */

@@ -127,7 +127,6 @@ crypto_sources := \
   src/crypto/ec/ec_key.c\
   src/crypto/ec/ec_montgomery.c\
   src/crypto/ec/oct.c\
-  src/crypto/ec/p224-64.c\
   src/crypto/ec/p256-64.c\
   src/crypto/ec/simple.c\
   src/crypto/ec/util-64.c\
@@ -178,6 +177,7 @@ crypto_sources := \
   src/crypto/poly1305/poly1305.c\
   src/crypto/poly1305/poly1305_arm.c\
   src/crypto/poly1305/poly1305_vec.c\
+  src/crypto/rand/hwrand.c\
   src/crypto/rand/rand.c\
   src/crypto/rand/urandom.c\
   src/crypto/rand/windows.c\
@@ -308,6 +308,7 @@ ssl_sources := \
   src/ssl/ssl_rsa.c\
   src/ssl/ssl_session.c\
   src/ssl/ssl_stat.c\
+  src/ssl/ssl_txt.c\
   src/ssl/t1_enc.c\
   src/ssl/t1_lib.c\
   src/ssl/tls_record.c\

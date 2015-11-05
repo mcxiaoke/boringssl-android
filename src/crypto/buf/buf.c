@@ -220,7 +220,7 @@ size_t BUF_strlcat(char *dst, const char *src, size_t dst_size) {
 void *BUF_memdup(const void *data, size_t dst_size) {
   void *ret;
 
-  if (dst_size == 0) {
+  if (data == NULL) {
     return NULL;
   }
 

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package runner
+package main
 
 import (
 	"bytes"
@@ -831,10 +831,6 @@ func (hs *clientHandshakeState) readSessionTicket() error {
 			hs.session = session
 		}
 		return nil
-	}
-
-	if c.vers == VersionSSL30 {
-		return errors.New("tls: negotiated session tickets in SSL 3.0")
 	}
 
 	msg, err := c.readHandshake()

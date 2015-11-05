@@ -181,7 +181,7 @@
 #define SSL_AES256 0x00000008L
 #define SSL_AES128GCM 0x00000010L
 #define SSL_AES256GCM 0x00000020L
-#define SSL_CHACHA20POLY1305_OLD 0x00000040L
+#define SSL_CHACHA20POLY1305 0x00000040L
 #define SSL_eNULL 0x00000080L
 
 #define SSL_AES (SSL_AES128 | SSL_AES256 | SSL_AES128GCM | SSL_AES256GCM)
@@ -462,13 +462,6 @@ enum ssl_private_key_result_t ssl_private_key_sign(
     const uint8_t *in, size_t in_len);
 
 enum ssl_private_key_result_t ssl_private_key_sign_complete(
-    SSL *ssl, uint8_t *out, size_t *out_len, size_t max_out);
-
-enum ssl_private_key_result_t ssl_private_key_decrypt(
-    SSL *ssl, uint8_t *out, size_t *out_len, size_t max_out,
-    const uint8_t *in, size_t in_len);
-
-enum ssl_private_key_result_t ssl_private_key_decrypt_complete(
     SSL *ssl, uint8_t *out, size_t *out_len, size_t max_out);
 
 
@@ -964,7 +957,7 @@ CERT *ssl_cert_new(void);
 CERT *ssl_cert_dup(CERT *cert);
 void ssl_cert_clear_certs(CERT *c);
 void ssl_cert_free(CERT *c);
-int ssl_get_new_session(SSL *ssl, int is_server);
+int ssl_get_new_session(SSL *s, int session);
 
 enum ssl_session_result_t {
   ssl_session_success,
@@ -983,6 +976,7 @@ enum ssl_session_result_t ssl_get_prev_session(
     const struct ssl_early_callback_ctx *ctx);
 
 STACK_OF(SSL_CIPHER) *ssl_bytes_to_cipher_list(SSL *s, const CBS *cbs);
+int ssl_cipher_list_to_bytes(SSL *s, STACK_OF(SSL_CIPHER) *sk, uint8_t *p);
 struct ssl_cipher_preference_list_st *ssl_cipher_preference_list_dup(
     struct ssl_cipher_preference_list_st *cipher_list);
 void ssl_cipher_preference_list_free(
@@ -1000,7 +994,7 @@ void ssl_cert_set_cert_cb(CERT *cert,
 
 int ssl_verify_cert_chain(SSL *ssl, STACK_OF(X509) *cert_chain);
 int ssl_add_cert_chain(SSL *s, unsigned long *l);
-void ssl_update_cache(SSL *ssl, int mode);
+void ssl_update_cache(SSL *s, int mode);
 
 /* ssl_get_compatible_server_ciphers determines the key exchange and
  * authentication cipher suite masks compatible with the server configuration
@@ -1110,7 +1104,7 @@ unsigned int dtls1_min_mtu(void);
 void dtls1_hm_fragment_free(hm_fragment *frag);
 
 /* some client-only functions */
-int ssl3_send_client_hello(SSL *ssl);
+int ssl3_send_client_hello(SSL *s);
 int ssl3_get_server_hello(SSL *s);
 int ssl3_get_certificate_request(SSL *s);
 int ssl3_get_new_session_ticket(SSL *s);
@@ -1122,15 +1116,15 @@ int ssl_do_client_cert_cb(SSL *s, X509 **px509, EVP_PKEY **ppkey);
 int ssl3_send_client_key_exchange(SSL *s);
 int ssl3_get_server_key_exchange(SSL *s);
 int ssl3_get_server_certificate(SSL *s);
-int ssl3_send_next_proto(SSL *ssl);
-int ssl3_send_channel_id(SSL *ssl);
+int ssl3_send_next_proto(SSL *s);
+int ssl3_send_channel_id(SSL *s);
 int ssl3_verify_server_cert(SSL *s);
 
 /* some server-only functions */
 int ssl3_get_initial_bytes(SSL *s);
 int ssl3_get_v2_client_hello(SSL *s);
 int ssl3_get_client_hello(SSL *s);
-int ssl3_send_server_hello(SSL *ssl);
+int ssl3_send_server_hello(SSL *s);
 int ssl3_send_server_key_exchange(SSL *s);
 int ssl3_send_certificate_request(SSL *s);
 int ssl3_send_server_done(SSL *s);
@@ -1214,14 +1208,10 @@ int tls1_check_ec_tmp_key(SSL *s);
 
 int tls1_shared_list(SSL *s, const uint8_t *l1, size_t l1len, const uint8_t *l2,
                      size_t l2len, int nmatch);
-
-/* ssl_add_clienthello_tlsext writes ClientHello extensions to |out|. It
- * returns one on success and zero on failure. The |header_len| argument is the
- * length of the ClientHello written so far and is used to compute the padding
- * length. (It does not include the record header.) */
-int ssl_add_clienthello_tlsext(SSL *ssl, CBB *out, size_t header_len);
-
-int ssl_add_serverhello_tlsext(SSL *ssl, CBB *out);
+uint8_t *ssl_add_clienthello_tlsext(SSL *s, uint8_t *const buf,
+                                    uint8_t *const limit, size_t header_len);
+uint8_t *ssl_add_serverhello_tlsext(SSL *s, uint8_t *const buf,
+                                    uint8_t *const limit);
 int ssl_parse_clienthello_tlsext(SSL *s, CBS *cbs);
 int ssl_parse_serverhello_tlsext(SSL *s, CBS *cbs);
 

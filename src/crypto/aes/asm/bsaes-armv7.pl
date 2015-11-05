@@ -701,6 +701,7 @@ ___
 }
 
 $code.=<<___;
+#if defined(__arm__)
 #ifndef __KERNEL__
 # include <openssl/arm_arch.h>
 
@@ -2495,6 +2496,7 @@ $code.=<<___;
 ___
 }
 $code.=<<___;
+#endif
 #endif
 ___
 

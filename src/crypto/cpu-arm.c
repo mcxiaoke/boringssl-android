@@ -14,14 +14,15 @@
 
 #include <openssl/cpu.h>
 
-#if (defined(OPENSSL_ARM) || defined(OPENSSL_AARCH64)) && \
-    !defined(OPENSSL_STATIC_ARMCAP)
+#if defined(OPENSSL_ARM) || defined(OPENSSL_AARCH64)
 
 #include <inttypes.h>
 #include <string.h>
 
+#if !defined(OPENSSL_TRUSTY)
 #include <setjmp.h>
 #include <signal.h>
+#endif
 
 #include <openssl/arm_arch.h>
 
@@ -31,8 +32,6 @@
  * that we need and have a weak pointer to getauxval. */
 
 unsigned long getauxval(unsigned long type) __attribute__((weak));
-
-extern uint32_t OPENSSL_armcap_P;
 
 char CRYPTO_is_NEON_capable(void) {
   return (OPENSSL_armcap_P & ARMV7_NEON) != 0;
@@ -63,15 +62,7 @@ void CRYPTO_set_NEON_functional(char neon_functional) {
   }
 }
 
-int CRYPTO_is_ARMv8_AES_capable(void) {
-  return (OPENSSL_armcap_P & ARMV8_AES) != 0;
-}
-
-int CRYPTO_is_ARMv8_PMULL_capable(void) {
-  return (OPENSSL_armcap_P & ARMV8_PMULL) != 0;
-}
-
-#if !defined(OPENSSL_NO_ASM) && defined(OPENSSL_ARM)
+#if !defined(OPENSSL_NO_ASM) && defined(OPENSSL_ARM) && !defined(OPENSSL_TRUSTY)
 
 static sigjmp_buf sigill_jmp;
 
@@ -129,7 +120,7 @@ static int probe_for_NEON(void) {
   return 0;
 }
 
-#endif  /* !OPENSSL_NO_ASM && OPENSSL_ARM */
+#endif  /* !OPENSSL_NO_ASM && OPENSSL_ARM && !OPENSSL_TRUSTY */
 
 void OPENSSL_cpuid_setup(void) {
   if (getauxval == NULL) {
@@ -195,5 +186,4 @@ void OPENSSL_cpuid_setup(void) {
   }
 }
 
-#endif  /* (defined(OPENSSL_ARM) || defined(OPENSSL_AARCH64)) &&
-           !defined(OPENSSL_STATIC_ARMCAP) */
+#endif  /* defined(OPENSSL_ARM) || defined(OPENSSL_AARCH64) */
