@@ -20,12 +20,15 @@ LOCAL_PATH := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
+MODULE_STATIC_LIB := true
+
 TARGET_ARCH := $(ARCH)
 TARGET_2ND_ARCH := $(ARCH)
 
 # Reset local variables
 LOCAL_CFLAGS :=
 LOCAL_C_INCLUDES :=
+LOCAL_SRC_FILES :=
 LOCAL_SRC_FILES_$(TARGET_ARCH) :=
 LOCAL_SRC_FILES_$(TARGET_2ND_ARCH) :=
 LOCAL_CFLAGS_$(TARGET_ARCH) :=
@@ -65,6 +68,5 @@ GLOBAL_INCLUDES += $(addprefix $(LOCAL_DIR)/,$(LOCAL_C_INCLUDES))
 
 MODULE_DEPS := \
 	lib/openssl-stubs \
-	lib/libc-trusty
 
 include make/module.mk
