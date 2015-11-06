@@ -97,12 +97,14 @@ DH *DH_new_method(const ENGINE *engine) {
 
   dh->references = 1;
   if (!CRYPTO_new_ex_data(&g_ex_data_class, dh, &dh->ex_data)) {
+    CRYPTO_MUTEX_cleanup(&dh->method_mont_p_lock);
     OPENSSL_free(dh);
     return NULL;
   }
 
   if (dh->meth->init && !dh->meth->init(dh)) {
     CRYPTO_free_ex_data(&g_ex_data_class, dh, &dh->ex_data);
+    CRYPTO_MUTEX_cleanup(&dh->method_mont_p_lock);
     METHOD_unref(dh->meth);
     OPENSSL_free(dh);
     return NULL;
@@ -127,15 +129,15 @@ void DH_free(DH *dh) {
 
   CRYPTO_free_ex_data(&g_ex_data_class, dh, &dh->ex_data);
 
-  if (dh->method_mont_p) BN_MONT_CTX_free(dh->method_mont_p);
-  if (dh->p != NULL) BN_clear_free(dh->p);
-  if (dh->g != NULL) BN_clear_free(dh->g);
-  if (dh->q != NULL) BN_clear_free(dh->q);
-  if (dh->j != NULL) BN_clear_free(dh->j);
-  if (dh->seed) OPENSSL_free(dh->seed);
-  if (dh->counter != NULL) BN_clear_free(dh->counter);
-  if (dh->pub_key != NULL) BN_clear_free(dh->pub_key);
-  if (dh->priv_key != NULL) BN_clear_free(dh->priv_key);
+  BN_MONT_CTX_free(dh->method_mont_p);
+  BN_clear_free(dh->p);
+  BN_clear_free(dh->g);
+  BN_clear_free(dh->q);
+  BN_clear_free(dh->j);
+  OPENSSL_free(dh->seed);
+  BN_clear_free(dh->counter);
+  BN_clear_free(dh->pub_key);
+  BN_clear_free(dh->priv_key);
   CRYPTO_MUTEX_cleanup(&dh->method_mont_p_lock);
 
   OPENSSL_free(dh);

@@ -39,6 +39,7 @@
 #include <openssl/buf.h>
 #include <openssl/bytestring.h>
 #include <openssl/cipher.h>
+#include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
@@ -96,10 +97,10 @@ struct TestState {
   bool handshake_done = false;
   // private_key is the underlying private key used when testing custom keys.
   ScopedEVP_PKEY private_key;
-  std::vector<uint8_t> signature;
-  // signature_retries is the number of times an asynchronous sign operation has
-  // been retried.
-  unsigned signature_retries = 0;
+  std::vector<uint8_t> private_key_result;
+  // private_key_retries is the number of times an asynchronous private key
+  // operation has been retried.
+  unsigned private_key_retries = 0;
   bool got_new_session = false;
 };
 
@@ -152,7 +153,7 @@ static ssl_private_key_result_t AsyncPrivateKeySign(
     SSL *ssl, uint8_t *out, size_t *out_len, size_t max_out,
     const EVP_MD *md, const uint8_t *in, size_t in_len) {
   TestState *test_state = GetTestState(ssl);
-  if (!test_state->signature.empty()) {
+  if (!test_state->private_key_result.empty()) {
     fprintf(stderr, "AsyncPrivateKeySign called with operation pending.\n");
     abort();
   }
@@ -170,42 +171,103 @@ static ssl_private_key_result_t AsyncPrivateKeySign(
       !EVP_PKEY_sign(ctx.get(), nullptr, &len, in, in_len)) {
     return ssl_private_key_failure;
   }
-  test_state->signature.resize(len);
-  if (!EVP_PKEY_sign(ctx.get(), bssl::vector_data(&test_state->signature), &len,
-                     in, in_len)) {
+  test_state->private_key_result.resize(len);
+  if (!EVP_PKEY_sign(ctx.get(), bssl::vector_data(
+          &test_state->private_key_result), &len, in, in_len)) {
     return ssl_private_key_failure;
   }
-  test_state->signature.resize(len);
+  test_state->private_key_result.resize(len);
 
-  // The signature will be released asynchronously in |AsyncPrivateKeySignComplete|.
+  // The signature will be released asynchronously in
+  // |AsyncPrivateKeySignComplete|.
   return ssl_private_key_retry;
 }
 
 static ssl_private_key_result_t AsyncPrivateKeySignComplete(
     SSL *ssl, uint8_t *out, size_t *out_len, size_t max_out) {
   TestState *test_state = GetTestState(ssl);
-  if (test_state->signature.empty()) {
+  if (test_state->private_key_result.empty()) {
     fprintf(stderr,
             "AsyncPrivateKeySignComplete called without operation pending.\n");
     abort();
   }
 
-  if (test_state->signature_retries < 2) {
+  if (test_state->private_key_retries < 2) {
     // Only return the signature on the second attempt, to test both incomplete
     // |sign| and |sign_complete|.
     return ssl_private_key_retry;
   }
 
-  if (max_out < test_state->signature.size()) {
+  if (max_out < test_state->private_key_result.size()) {
     fprintf(stderr, "Output buffer too small.\n");
     return ssl_private_key_failure;
   }
-  memcpy(out, bssl::vector_data(&test_state->signature),
-         test_state->signature.size());
-  *out_len = test_state->signature.size();
+  memcpy(out, bssl::vector_data(&test_state->private_key_result),
+         test_state->private_key_result.size());
+  *out_len = test_state->private_key_result.size();
 
-  test_state->signature.clear();
-  test_state->signature_retries = 0;
+  test_state->private_key_result.clear();
+  test_state->private_key_retries = 0;
+  return ssl_private_key_success;
+}
+
+static ssl_private_key_result_t AsyncPrivateKeyDecrypt(
+    SSL *ssl, uint8_t *out, size_t *out_len, size_t max_out,
+    const uint8_t *in, size_t in_len) {
+  TestState *test_state = GetTestState(ssl);
+  if (!test_state->private_key_result.empty()) {
+    fprintf(stderr,
+            "AsyncPrivateKeyDecrypt called with operation pending.\n");
+    abort();
+  }
+
+  EVP_PKEY *pkey = test_state->private_key.get();
+  if (pkey->type != EVP_PKEY_RSA || pkey->pkey.rsa == NULL) {
+    fprintf(stderr,
+            "AsyncPrivateKeyDecrypt called with incorrect key type.\n");
+    abort();
+  }
+  RSA *rsa = pkey->pkey.rsa;
+  test_state->private_key_result.resize(RSA_size(rsa));
+  if (!RSA_decrypt(rsa, out_len,
+                   bssl::vector_data(&test_state->private_key_result),
+                   RSA_size(rsa), in, in_len, RSA_NO_PADDING)) {
+    return ssl_private_key_failure;
+  }
+
+  test_state->private_key_result.resize(*out_len);
+
+  // The decryption will be released asynchronously in
+  // |AsyncPrivateKeyDecryptComplete|.
+  return ssl_private_key_retry;
+}
+
+static ssl_private_key_result_t AsyncPrivateKeyDecryptComplete(
+    SSL *ssl, uint8_t *out, size_t *out_len, size_t max_out) {
+  TestState *test_state = GetTestState(ssl);
+  if (test_state->private_key_result.empty()) {
+    fprintf(stderr,
+            "AsyncPrivateKeyDecryptComplete called without operation "
+            "pending.\n");
+    abort();
+  }
+
+  if (test_state->private_key_retries < 2) {
+    // Only return the decryption on the second attempt, to test both incomplete
+    // |decrypt| and |decrypt_complete|.
+    return ssl_private_key_retry;
+  }
+
+  if (max_out < test_state->private_key_result.size()) {
+    fprintf(stderr, "Output buffer too small.\n");
+    return ssl_private_key_failure;
+  }
+  memcpy(out, bssl::vector_data(&test_state->private_key_result),
+         test_state->private_key_result.size());
+  *out_len = test_state->private_key_result.size();
+
+  test_state->private_key_result.clear();
+  test_state->private_key_retries = 0;
   return ssl_private_key_success;
 }
 
@@ -214,6 +276,8 @@ static const SSL_PRIVATE_KEY_METHOD g_async_private_key_method = {
     AsyncPrivateKeyMaxSignatureLen,
     AsyncPrivateKeySign,
     AsyncPrivateKeySignComplete,
+    AsyncPrivateKeyDecrypt,
+    AsyncPrivateKeyDecryptComplete
 };
 
 template<typename T>
@@ -249,7 +313,7 @@ static bool InstallCertificate(SSL *ssl) {
   }
 
   if (!config->key_file.empty()) {
-    if (config->use_async_private_key) {
+    if (config->async) {
       test_state->private_key = LoadPrivateKey(config->key_file.c_str());
       if (!test_state->private_key) {
         return false;
@@ -678,7 +742,7 @@ static ScopedSSL_CTX SetupCtx(const TestConfig *config) {
     SSL_CTX_set_session_cache_mode(ssl_ctx.get(), SSL_SESS_CACHE_BOTH);
   }
 
-  ssl_ctx->select_certificate_cb = SelectCertificateCallback;
+  SSL_CTX_set_select_certificate_cb(ssl_ctx.get(), SelectCertificateCallback);
 
   SSL_CTX_set_next_protos_advertised_cb(
       ssl_ctx.get(), NextProtosAdvertisedCallback, NULL);
@@ -788,7 +852,7 @@ static bool RetryAsync(SSL *ssl, int ret) {
       // The handshake will resume without a second call to the early callback.
       return InstallCertificate(ssl);
     case SSL_ERROR_WANT_PRIVATE_KEY_OPERATION:
-      test_state->signature_retries++;
+      test_state->private_key_retries++;
       return true;
     default:
       return false;
@@ -863,7 +927,7 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume) {
         (!SSL_session_reused(ssl) || config->expect_ticket_renewal);
     if (expect_new_session != GetTestState(ssl)->got_new_session) {
       fprintf(stderr,
-              "new session was%s established, but we expected the opposite\n",
+              "new session was%s cached, but we expected the opposite\n",
               GetTestState(ssl)->got_new_session ? "" : " not");
       return false;
     }
@@ -1114,12 +1178,17 @@ static bool DoExchange(ScopedSSL_SESSION *out_session, SSL_CTX *ssl_ctx,
   if (config->install_ddos_callback) {
     SSL_CTX_set_dos_protection_cb(ssl_ctx, DDoSCallback);
   }
-  if (!config->reject_peer_renegotiations) {
-    /* Renegotiations are disabled by default. */
-    SSL_set_reject_peer_renegotiations(ssl.get(), 0);
+  if (config->renegotiate_once) {
+    SSL_set_renegotiate_mode(ssl.get(), ssl_renegotiate_once);
+  }
+  if (config->renegotiate_freely) {
+    SSL_set_renegotiate_mode(ssl.get(), ssl_renegotiate_freely);
   }
   if (!config->check_close_notify) {
     SSL_set_quiet_shutdown(ssl.get(), 1);
+  }
+  if (config->disable_npn) {
+    SSL_set_options(ssl.get(), SSL_OP_DISABLE_NPN);
   }
 
   int sock = Connect(config->port);
@@ -1333,6 +1402,14 @@ static bool DoExchange(ScopedSSL_SESSION *out_session, SSL_CTX *ssl_ctx,
     return false;
   }
 
+  if (SSL_total_renegotiations(ssl.get()) !=
+      config->expect_total_renegotiations) {
+    fprintf(stderr, "Expected %d renegotiations, got %d\n",
+            config->expect_total_renegotiations,
+            SSL_total_renegotiations(ssl.get()));
+    return false;
+  }
+
   return true;
 }
 
@@ -1354,9 +1431,7 @@ int main(int argc, char **argv) {
   signal(SIGPIPE, SIG_IGN);
 #endif
 
-  if (!SSL_library_init()) {
-    return 1;
-  }
+  CRYPTO_library_init();
   g_config_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
   g_state_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, TestStateExFree);
   if (g_config_index < 0 || g_state_index < 0) {
