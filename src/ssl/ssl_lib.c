@@ -1986,14 +1986,16 @@ void ssl_free_wbio_buffer(SSL *s) {
 }
 
 void SSL_CTX_set_quiet_shutdown(SSL_CTX *ctx, int mode) {
-  ctx->quiet_shutdown = mode;
+  ctx->quiet_shutdown = (mode != 0);
 }
 
 int SSL_CTX_get_quiet_shutdown(const SSL_CTX *ctx) {
   return ctx->quiet_shutdown;
 }
 
-void SSL_set_quiet_shutdown(SSL *ssl, int mode) { ssl->quiet_shutdown = mode; }
+void SSL_set_quiet_shutdown(SSL *ssl, int mode) {
+  ssl->quiet_shutdown = (mode != 0);
+}
 
 int SSL_get_quiet_shutdown(const SSL *ssl) { return ssl->quiet_shutdown; }
 
@@ -2632,6 +2634,27 @@ int SSL_get_rc4_state(const SSL *ssl, const RC4_KEY **read_key,
 
   return EVP_AEAD_CTX_get_rc4_state(&ssl->aead_read_ctx->ctx, read_key) &&
          EVP_AEAD_CTX_get_rc4_state(&ssl->aead_write_ctx->ctx, write_key);
+}
+
+int SSL_get_ivs(const SSL *ssl, const uint8_t **out_read_iv,
+                const uint8_t **out_write_iv, size_t *out_iv_len) {
+  if (ssl->aead_read_ctx == NULL || ssl->aead_write_ctx == NULL) {
+    return 0;
+  }
+
+  size_t write_iv_len;
+  if (!EVP_AEAD_CTX_get_iv(&ssl->aead_read_ctx->ctx, out_read_iv, out_iv_len) ||
+      !EVP_AEAD_CTX_get_iv(&ssl->aead_write_ctx->ctx, out_write_iv,
+                           &write_iv_len) ||
+      *out_iv_len != write_iv_len) {
+    return 0;
+  }
+
+  return 1;
+}
+
+uint8_t SSL_get_server_key_exchange_hash(const SSL *ssl) {
+  return ssl->s3->tmp.server_key_exchange_hash;
 }
 
 int SSL_clear(SSL *ssl) {

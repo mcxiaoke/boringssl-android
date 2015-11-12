@@ -108,8 +108,8 @@ extern "C" {
 #endif
 
 #define OPENSSL_IS_BORINGSSL
-#define OPENSSL_VERSION_NUMBER 0x10002000
 #define BORINGSSL_201510
+#define OPENSSL_VERSION_NUMBER 0x10002000
 #define SSLEAY_VERSION_NUMBER OPENSSL_VERSION_NUMBER
 
 #if defined(BORINGSSL_SHARED_LIBRARY)
@@ -202,9 +202,7 @@ typedef struct cbs_st CBS;
 typedef struct cmac_ctx_st CMAC_CTX;
 typedef struct conf_st CONF;
 typedef struct conf_value_st CONF_VALUE;
-typedef struct dh_method DH_METHOD;
 typedef struct dh_st DH;
-typedef struct dsa_method DSA_METHOD;
 typedef struct dsa_st DSA;
 typedef struct ec_key_st EC_KEY;
 typedef struct ecdsa_method_st ECDSA_METHOD;

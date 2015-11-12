@@ -1078,14 +1078,16 @@ func (c *Conn) skipPacket(packet []byte) error {
 		seq := packet[5:11]
 		length := uint16(packet[11])<<8 | uint16(packet[12])
 		if bytes.Equal(c.in.seq[:2], epoch) {
-			if !bytes.Equal(c.in.seq[2:], seq) {
+			if bytes.Compare(seq, c.in.seq[2:]) < 0 {
 				return errors.New("tls: sequence mismatch")
 			}
+			copy(c.in.seq[2:], seq)
 			c.in.incSeq(false)
 		} else {
-			if !bytes.Equal(c.in.nextSeq[:], seq) {
+			if bytes.Compare(seq, c.in.nextSeq[:]) < 0 {
 				return errors.New("tls: sequence mismatch")
 			}
+			copy(c.in.nextSeq[:], seq)
 			c.in.incNextSeq()
 		}
 		if len(packet) < 13+int(length) {
@@ -1148,6 +1150,10 @@ func (c *Conn) Write(b []byte) (int, error) {
 
 	if c.config.Bugs.SendSpuriousAlert != 0 {
 		c.sendAlertLocked(alertLevelError, c.config.Bugs.SendSpuriousAlert)
+	}
+
+	if c.config.Bugs.SendHelloRequestBeforeEveryAppDataRecord {
+		c.writeRecord(recordTypeHandshake, []byte{typeHelloRequest, 0, 0, 0})
 	}
 
 	// SSL 3.0 and TLS 1.0 are susceptible to a chosen-plaintext

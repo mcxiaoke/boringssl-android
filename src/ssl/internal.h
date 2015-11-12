@@ -695,15 +695,6 @@ void ssl_write_buffer_clear(SSL *ssl);
 /* See if we use signature algorithms extension and signature algorithm before
  * signatures. */
 #define SSL_USE_SIGALGS(s) (s->enc_method->enc_flags & SSL_ENC_FLAG_SIGALGS)
-/* Allow TLS 1.2 ciphersuites: applies to DTLS 1.2 as well as TLS 1.2: may
- * apply to others in future. */
-#define SSL_USE_TLS1_2_CIPHERS(s) \
-  (s->enc_method->enc_flags & SSL_ENC_FLAG_TLS1_2_CIPHERS)
-/* Determine if a client can use TLS 1.2 ciphersuites: can't rely on method
- * flags because it may not be set to correct version yet. */
-#define SSL_CLIENT_USE_TLS1_2_CIPHERS(s)                       \
-  ((SSL_IS_DTLS(s) && s->client_version <= DTLS1_2_VERSION) || \
-   (!SSL_IS_DTLS(s) && s->client_version >= TLS1_2_VERSION))
 
 /* SSL_kRSA <- RSA_ENC | (RSA_TMP & RSA_SIGN) |
  * 	    <- (EXPORT & (RSA_ENC | RSA_TMP) & RSA_SIGN)
@@ -739,17 +730,12 @@ typedef struct cert_st {
   const SSL_PRIVATE_KEY_METHOD *key_method;
 
   /* For clients the following masks are of *disabled* key and auth algorithms
-   * based on the current session.
+   * based on the current configuration.
    *
    * TODO(davidben): Remove these. They get checked twice: when sending the
-   * ClientHello and when processing the ServerHello. However, mask_ssl is a
-   * different value both times. mask_k and mask_a are not, but is a
-   * round-about way of checking the server's cipher was one of the advertised
-   * ones. (Currently it checks the masks and then the list of ciphers prior to
-   * applying the masks in ClientHello.) */
+   * ClientHello and when processing the ServerHello. */
   uint32_t mask_k;
   uint32_t mask_a;
-  uint32_t mask_ssl;
 
   DH *dh_tmp;
   DH *(*dh_tmp_cb)(SSL *ssl, int is_export, int keysize);
@@ -857,9 +843,6 @@ struct ssl3_enc_method {
 #define SSL_ENC_FLAG_SIGALGS 0x2
 /* Uses SHA256 default PRF */
 #define SSL_ENC_FLAG_SHA256_PRF 0x4
-/* Allow TLS 1.2 ciphersuites: applies to DTLS 1.2 as well as TLS 1.2:
- * may apply to others in future. */
-#define SSL_ENC_FLAG_TLS1_2_CIPHERS 0x8
 
 /* lengths of messages */
 #define DTLS1_COOKIE_LENGTH 256
@@ -912,7 +895,9 @@ typedef struct dtls1_state_st {
   /* records being received in the current epoch */
   DTLS1_BITMAP bitmap;
 
-  /* handshake message numbers */
+  /* handshake message numbers.
+   * TODO(davidben): It doesn't make much sense to store both of these. Only
+   * store one. */
   uint16_t handshake_write_seq;
   uint16_t next_handshake_write_seq;
 
@@ -1075,11 +1060,10 @@ int ssl3_do_change_cipher_spec(SSL *ssl);
 int ssl3_set_handshake_header(SSL *s, int htype, unsigned long len);
 int ssl3_handshake_write(SSL *s);
 
-int dtls1_do_write(SSL *s, int type, enum dtls1_use_epoch_t use_epoch);
+int dtls1_do_handshake_write(SSL *s, enum dtls1_use_epoch_t use_epoch);
 int dtls1_read_app_data(SSL *ssl, uint8_t *buf, int len, int peek);
 void dtls1_read_close_notify(SSL *ssl);
 int dtls1_read_bytes(SSL *s, int type, uint8_t *buf, int len, int peek);
-int ssl3_write_pending(SSL *s, int type, const uint8_t *buf, unsigned int len);
 void dtls1_set_message_header(SSL *s, uint8_t mt, unsigned long len,
                               unsigned short seq_num, unsigned long frag_off,
                               unsigned long frag_len);
@@ -1091,8 +1075,7 @@ int dtls1_write_bytes(SSL *s, int type, const void *buf, int len,
 int dtls1_send_change_cipher_spec(SSL *s, int a, int b);
 int dtls1_send_finished(SSL *s, int a, int b, const char *sender, int slen);
 int dtls1_read_failed(SSL *s, int code);
-int dtls1_buffer_message(SSL *s, int ccs);
-int dtls1_get_queue_priority(unsigned short seq, int is_ccs);
+int dtls1_buffer_message(SSL *s);
 int dtls1_retransmit_buffered_messages(SSL *s);
 void dtls1_clear_record_buffer(SSL *s);
 void dtls1_get_message_header(uint8_t *data, struct hm_header_st *msg_hdr);
@@ -1311,8 +1294,13 @@ int tls1_parse_peer_sigalgs(SSL *s, const CBS *sigalgs);
 const EVP_MD *tls1_choose_signing_digest(SSL *ssl);
 
 size_t tls12_get_psigalgs(SSL *s, const uint8_t **psigs);
-int tls12_check_peer_sigalg(const EVP_MD **out_md, int *out_alert, SSL *s,
-                            CBS *cbs, EVP_PKEY *pkey);
+
+/* tls12_check_peer_sigalg checks that |hash| and |signature| are consistent
+ * with |pkey| and |ssl|'s sent, supported signature algorithms and, if so,
+ * writes the relevant digest into |*out_md| and returns 1. Otherwise it
+ * returns 0 and writes an alert into |*out_alert|. */
+int tls12_check_peer_sigalg(SSL *ssl, const EVP_MD **out_md, int *out_alert,
+                            uint8_t hash, uint8_t signature, EVP_PKEY *pkey);
 void ssl_set_client_disabled(SSL *s);
 
 #endif /* OPENSSL_HEADER_SSL_INTERNAL_H */

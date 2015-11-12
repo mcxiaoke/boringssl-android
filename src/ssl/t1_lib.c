@@ -169,8 +169,7 @@ const SSL3_ENC_METHOD TLSv1_2_enc_data = {
     TLS_MD_SERVER_FINISH_CONST,TLS_MD_SERVER_FINISH_CONST_SIZE,
     tls1_alert_code,
     tls1_export_keying_material,
-    SSL_ENC_FLAG_EXPLICIT_IV|SSL_ENC_FLAG_SIGALGS|SSL_ENC_FLAG_SHA256_PRF
-            |SSL_ENC_FLAG_TLS1_2_CIPHERS,
+    SSL_ENC_FLAG_EXPLICIT_IV|SSL_ENC_FLAG_SIGALGS|SSL_ENC_FLAG_SHA256_PRF,
 };
 
 static int compare_uint16_t(const void *p1, const void *p2) {
@@ -641,28 +640,16 @@ size_t tls12_get_psigalgs(SSL *s, const uint8_t **psigs) {
   return sizeof(tls12_sigalgs);
 }
 
-/* tls12_check_peer_sigalg parses a SignatureAndHashAlgorithm out of |cbs|. It
- * checks it is consistent with |s|'s sent supported signature algorithms and,
- * if so, writes the relevant digest into |*out_md| and returns 1. Otherwise it
- * returns 0 and writes an alert into |*out_alert|. */
-int tls12_check_peer_sigalg(const EVP_MD **out_md, int *out_alert, SSL *s,
-                            CBS *cbs, EVP_PKEY *pkey) {
+int tls12_check_peer_sigalg(SSL *ssl, const EVP_MD **out_md, int *out_alert,
+                            uint8_t hash, uint8_t signature, EVP_PKEY *pkey) {
   const uint8_t *sent_sigs;
   size_t sent_sigslen, i;
   int sigalg = tls12_get_sigid(pkey->type);
-  uint8_t hash, signature;
 
   /* Should never happen */
   if (sigalg == -1) {
     OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
     *out_alert = SSL_AD_INTERNAL_ERROR;
-    return 0;
-  }
-
-  if (!CBS_get_u8(cbs, &hash) ||
-      !CBS_get_u8(cbs, &signature)) {
-    OPENSSL_PUT_ERROR(SSL, SSL_R_DECODE_ERROR);
-    *out_alert = SSL_AD_DECODE_ERROR;
     return 0;
   }
 
@@ -682,8 +669,8 @@ int tls12_check_peer_sigalg(const EVP_MD **out_md, int *out_alert, SSL *s,
       return 0;
     }
 
-    if (s->server && (!tls1_check_curve_id(s, curve_id) ||
-                      comp_id != TLSEXT_ECPOINTFORMAT_uncompressed)) {
+    if (ssl->server && (!tls1_check_curve_id(ssl, curve_id) ||
+                        comp_id != TLSEXT_ECPOINTFORMAT_uncompressed)) {
       OPENSSL_PUT_ERROR(SSL, SSL_R_WRONG_CURVE);
       *out_alert = SSL_AD_ILLEGAL_PARAMETER;
       return 0;
@@ -691,15 +678,14 @@ int tls12_check_peer_sigalg(const EVP_MD **out_md, int *out_alert, SSL *s,
   }
 
   /* Check signature matches a type we sent */
-  sent_sigslen = tls12_get_psigalgs(s, &sent_sigs);
+  sent_sigslen = tls12_get_psigalgs(ssl, &sent_sigs);
   for (i = 0; i < sent_sigslen; i += 2, sent_sigs += 2) {
     if (hash == sent_sigs[0] && signature == sent_sigs[1]) {
       break;
     }
   }
 
-  /* Allow fallback to SHA-1. */
-  if (i == sent_sigslen && hash != TLSEXT_hash_sha1) {
+  if (i == sent_sigslen) {
     OPENSSL_PUT_ERROR(SSL, SSL_R_WRONG_SIGNATURE_TYPE);
     *out_alert = SSL_AD_ILLEGAL_PARAMETER;
     return 0;
@@ -726,13 +712,6 @@ void ssl_set_client_disabled(SSL *s) {
   int have_rsa = 0, have_ecdsa = 0;
   c->mask_a = 0;
   c->mask_k = 0;
-
-  /* Don't allow TLS 1.2 only ciphers if we don't suppport them */
-  if (!SSL_CLIENT_USE_TLS1_2_CIPHERS(s)) {
-    c->mask_ssl = SSL_TLSV1_2;
-  } else {
-    c->mask_ssl = 0;
-  }
 
   /* Now go through all signature algorithms seeing if we support any for RSA,
    * DSA, ECDSA. Do this for all versions not just TLS 1.2. */

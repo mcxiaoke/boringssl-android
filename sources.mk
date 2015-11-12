@@ -113,7 +113,6 @@ crypto_sources := \
   src/crypto/dh/check.c\
   src/crypto/dh/dh.c\
   src/crypto/dh/dh_asn1.c\
-  src/crypto/dh/dh_impl.c\
   src/crypto/dh/params.c\
   src/crypto/digest/digest.c\
   src/crypto/digest/digests.c\
@@ -121,7 +120,6 @@ crypto_sources := \
   src/crypto/directory_win.c\
   src/crypto/dsa/dsa.c\
   src/crypto/dsa/dsa_asn1.c\
-  src/crypto/dsa/dsa_impl.c\
   src/crypto/ec/ec.c\
   src/crypto/ec/ec_asn1.c\
   src/crypto/ec/ec_key.c\
@@ -129,6 +127,7 @@ crypto_sources := \
   src/crypto/ec/oct.c\
   src/crypto/ec/p224-64.c\
   src/crypto/ec/p256-64.c\
+  src/crypto/ec/p256-x86_64.c\
   src/crypto/ec/simple.c\
   src/crypto/ec/util-64.c\
   src/crypto/ec/wnaf.c\
@@ -314,6 +313,7 @@ ssl_sources := \
 
 tool_sources := \
   src/tool/args.cc\
+  src/tool/ciphers.cc\
   src/tool/client.cc\
   src/tool/const.cc\
   src/tool/digest.cc\
@@ -327,6 +327,7 @@ tool_sources := \
 
 linux_aarch64_sources := \
   linux-aarch64/crypto/aes/aesv8-armx64.S\
+  linux-aarch64/crypto/bn/armv8-mont.S\
   linux-aarch64/crypto/modes/ghashv8-armx64.S\
   linux-aarch64/crypto/sha/sha1-armv8.S\
   linux-aarch64/crypto/sha/sha256-armv8.S\
@@ -369,6 +370,7 @@ linux_x86_64_sources := \
   linux-x86_64/crypto/bn/rsaz-x86_64.S\
   linux-x86_64/crypto/bn/x86_64-mont.S\
   linux-x86_64/crypto/bn/x86_64-mont5.S\
+  linux-x86_64/crypto/ec/p256-x86_64-asm.S\
   linux-x86_64/crypto/md5/md5-x86_64.S\
   linux-x86_64/crypto/modes/aesni-gcm-x86_64.S\
   linux-x86_64/crypto/modes/ghash-x86_64.S\
@@ -402,6 +404,7 @@ mac_x86_64_sources := \
   mac-x86_64/crypto/bn/rsaz-x86_64.S\
   mac-x86_64/crypto/bn/x86_64-mont.S\
   mac-x86_64/crypto/bn/x86_64-mont5.S\
+  mac-x86_64/crypto/ec/p256-x86_64-asm.S\
   mac-x86_64/crypto/md5/md5-x86_64.S\
   mac-x86_64/crypto/modes/aesni-gcm-x86_64.S\
   mac-x86_64/crypto/modes/ghash-x86_64.S\
@@ -435,6 +438,7 @@ win_x86_64_sources := \
   win-x86_64/crypto/bn/rsaz-x86_64.asm\
   win-x86_64/crypto/bn/x86_64-mont.asm\
   win-x86_64/crypto/bn/x86_64-mont5.asm\
+  win-x86_64/crypto/ec/p256-x86_64-asm.asm\
   win-x86_64/crypto/md5/md5-x86_64.asm\
   win-x86_64/crypto/modes/aesni-gcm-x86_64.asm\
   win-x86_64/crypto/modes/ghash-x86_64.asm\

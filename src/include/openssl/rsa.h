@@ -525,7 +525,7 @@ struct rsa_meth_st {
                  BN_CTX *ctx); /* Can be null */
   int (*bn_mod_exp)(BIGNUM *r, const BIGNUM *a, const BIGNUM *p,
                     const BIGNUM *m, BN_CTX *ctx,
-                    BN_MONT_CTX *m_ctx);
+                    const BN_MONT_CTX *mont);
 
   int flags;
 
@@ -567,9 +567,9 @@ struct rsa_st {
 
   /* Used to cache montgomery values. The creation of these values is protected
    * by |lock|. */
-  BN_MONT_CTX *_method_mod_n;
-  BN_MONT_CTX *_method_mod_p;
-  BN_MONT_CTX *_method_mod_q;
+  BN_MONT_CTX *mont_n;
+  BN_MONT_CTX *mont_p;
+  BN_MONT_CTX *mont_q;
 
   /* num_blindings contains the size of the |blindings| and |blindings_inuse|
    * arrays. This member and the |blindings_inuse| array are protected by

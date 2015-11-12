@@ -604,9 +604,12 @@ static int ssl3_write_client_cipher_list(SSL *ssl, CBB *out) {
   for (i = 0; i < sk_SSL_CIPHER_num(ciphers); i++) {
     const SSL_CIPHER *cipher = sk_SSL_CIPHER_value(ciphers, i);
     /* Skip disabled ciphers */
-    if (cipher->algorithm_ssl & ssl->cert->mask_ssl ||
-        cipher->algorithm_mkey & ssl->cert->mask_k ||
-        cipher->algorithm_auth & ssl->cert->mask_a) {
+    if ((cipher->algorithm_mkey & ssl->cert->mask_k) ||
+        (cipher->algorithm_auth & ssl->cert->mask_a)) {
+      continue;
+    }
+    if (SSL_CIPHER_get_min_version(cipher) >
+        ssl3_version_from_wire(ssl, ssl->client_version)) {
       continue;
     }
     any_enabled = 1;
@@ -643,6 +646,13 @@ static int ssl3_write_client_cipher_list(SSL *ssl, CBB *out) {
 int ssl3_send_client_hello(SSL *ssl) {
   if (ssl->state == SSL3_ST_CW_CLNT_HELLO_B) {
     return ssl_do_write(ssl);
+  }
+
+  /* In DTLS, reset the handshake buffer each time a new ClientHello is
+   * assembled. We may send multiple if we receive HelloVerifyRequest. */
+  if (SSL_IS_DTLS(ssl) && !ssl3_init_handshake_buffer(ssl)) {
+    OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
+    return -1;
   }
 
   CBB cbb;
@@ -734,7 +744,6 @@ int ssl3_get_server_hello(SSL *s) {
   CBS server_hello, server_random, session_id;
   uint16_t server_version, cipher_suite;
   uint8_t compression_method;
-  uint32_t mask_ssl;
 
   n = s->method->ssl_get_message(s, SSL3_ST_CR_SRVR_HELLO_A,
                                  SSL3_ST_CR_SRVR_HELLO_B, SSL3_MT_SERVER_HELLO,
@@ -827,18 +836,11 @@ int ssl3_get_server_hello(SSL *s) {
     OPENSSL_PUT_ERROR(SSL, SSL_R_UNKNOWN_CIPHER_RETURNED);
     goto f_err;
   }
-  /* ct->mask_ssl was computed from client capabilities. Now
-   * that the final version is known, compute a new mask_ssl. */
-  if (!SSL_USE_TLS1_2_CIPHERS(s)) {
-    mask_ssl = SSL_TLSV1_2;
-  } else {
-    mask_ssl = 0;
-  }
   /* If the cipher is disabled then we didn't sent it in the ClientHello, so if
    * the server selected it, it's an error. */
-  if ((c->algorithm_ssl & mask_ssl) ||
-      (c->algorithm_mkey & ct->mask_k) ||
-      (c->algorithm_auth & ct->mask_a)) {
+  if ((c->algorithm_mkey & ct->mask_k) ||
+      (c->algorithm_auth & ct->mask_a) ||
+      SSL_CIPHER_get_min_version(c) > ssl3_version_from_wire(s, s->version)) {
     al = SSL_AD_ILLEGAL_PARAMETER;
     OPENSSL_PUT_ERROR(SSL, SSL_R_WRONG_CIPHER_RETURNED);
     goto f_err;
@@ -1242,9 +1244,17 @@ int ssl3_get_server_key_exchange(SSL *s) {
     }
 
     if (SSL_USE_SIGALGS(s)) {
-      if (!tls12_check_peer_sigalg(&md, &al, s, &server_key_exchange, pkey)) {
+      uint8_t hash, signature;
+      if (!CBS_get_u8(&server_key_exchange, &hash) ||
+          !CBS_get_u8(&server_key_exchange, &signature)) {
+        al = SSL_AD_DECODE_ERROR;
+        OPENSSL_PUT_ERROR(SSL, SSL_R_DECODE_ERROR);
         goto f_err;
       }
+      if (!tls12_check_peer_sigalg(s, &md, &al, hash, signature, pkey)) {
+        goto f_err;
+      }
+      s->s3->tmp.server_key_exchange_hash = hash;
     } else if (pkey->type == EVP_PKEY_RSA) {
       md = EVP_md5_sha1();
     } else {
@@ -1449,7 +1459,9 @@ int ssl3_get_new_session_ticket(SSL *s) {
 
   if (CBS_len(&ticket) == 0) {
     /* RFC 5077 allows a server to change its mind and send no ticket after
-     * negotiating the extension. Behave as if no ticket was sent. */
+     * negotiating the extension. The value of |tlsext_ticket_expected| is
+     * checked in |ssl_update_cache| so is cleared here to avoid an unnecessary
+     * update. */
     s->tlsext_ticket_expected = 0;
     return 1;
   }

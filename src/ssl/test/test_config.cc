@@ -96,6 +96,7 @@ const Flag<bool> kBoolFlags[] = {
   { "-expect-verify-result", &TestConfig::expect_verify_result },
   { "-renegotiate-once", &TestConfig::renegotiate_once },
   { "-renegotiate-freely", &TestConfig::renegotiate_freely },
+  { "-renegotiate-ignore", &TestConfig::renegotiate_ignore },
   { "-disable-npn", &TestConfig::disable_npn },
 };
 
@@ -140,6 +141,8 @@ const Flag<int> kIntFlags[] = {
   { "-mtu", &TestConfig::mtu },
   { "-export-keying-material", &TestConfig::export_keying_material },
   { "-expect-total-renegotiations", &TestConfig::expect_total_renegotiations },
+  { "-expect-server-key-exchange-hash",
+    &TestConfig::expect_server_key_exchange_hash },
 };
 
 }  // namespace

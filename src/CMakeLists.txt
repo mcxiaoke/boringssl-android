@@ -17,8 +17,8 @@ if (NOT GO_EXECUTABLE)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wsign-compare -ggdb -fvisibility=hidden")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wsign-compare -ggdb -std=c++0x -fvisibility=hidden")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wsign-compare -Wmissing-field-initializers -ggdb -fvisibility=hidden")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wsign-compare -Wmissing-field-initializers -ggdb -std=c++0x -fvisibility=hidden")
 elseif(MSVC)
   set(MSVC_DISABLED_WARNINGS_LIST
       "C4100" # 'exarg' : unreferenced formal parameter
@@ -78,6 +78,17 @@ endif()
 if((CMAKE_COMPILER_IS_GNUCXX AND CMAKE_C_COMPILER_VERSION VERSION_GREATER "4.8.99") OR
    CMAKE_CXX_COMPILER_ID MATCHES "Clang")
  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 -D_XOPEN_SOURCE=700")
+endif()
+
+if(FUZZ)
+  if(!CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message("You need to build with Clang for fuzzing to work")
+  endif()
+
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -fsanitize-coverage=edge,indirect-calls")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize-coverage=edge,indirect-calls")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
+  link_directories(.)
 endif()
 
 add_definitions(-DBORINGSSL_IMPLEMENTATION)
@@ -146,6 +157,10 @@ add_subdirectory(ssl)
 add_subdirectory(ssl/test)
 add_subdirectory(tool)
 add_subdirectory(decrepit)
+
+if(FUZZ)
+  add_subdirectory(fuzz)
+endif()
 
 if (NOT ${CMAKE_VERSION} VERSION_LESS "3.2")
   # USES_TERMINAL is only available in CMake 3.2 or later.

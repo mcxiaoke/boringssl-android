@@ -259,7 +259,7 @@ OPENSSL_EXPORT int SSL_get_rfd(const SSL *ssl);
  * descriptor then it returns -1. */
 OPENSSL_EXPORT int SSL_get_wfd(const SSL *ssl);
 
-/* SSL_set_wfd configures |ssl| to read from and write to |fd|. It returns one
+/* SSL_set_fd configures |ssl| to read from and write to |fd|. It returns one
  * on success and zero on allocation error. The caller retains ownership of
  * |fd|. */
 OPENSSL_EXPORT int SSL_set_fd(SSL *ssl, int fd);
@@ -317,18 +317,24 @@ OPENSSL_EXPORT int SSL_pending(const SSL *ssl);
  * returns the number of bytes read. Otherwise, it returns <= 0. The caller
  * should pass the value into |SSL_get_error| to determine how to proceed.
  *
- * A non-blocking |SSL_write| differs from non-blocking |write| in that a failed
- * |SSL_write| still commits to the data passed in. When retrying, the caller
- * must supply the original write buffer (or a larger one containing the
+ * In TLS, a non-blocking |SSL_write| differs from non-blocking |write| in that
+ * a failed |SSL_write| still commits to the data passed in. When retrying, the
+ * caller must supply the original write buffer (or a larger one containing the
  * original as a prefix). By default, retries will fail if they also do not
  * reuse the same |buf| pointer. This may be relaxed with
  * |SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER|, but the buffer contents still must be
  * unchanged.
  *
- * By default, |SSL_write| will not return success until all |num| bytes are
- * written. This may be relaxed with |SSL_MODE_ENABLE_PARTIAL_WRITE|. It allows
- * |SSL_write| to complete with a partial result when only part of the input was
- * written in a single record.
+ * By default, in TLS, |SSL_write| will not return success until all |num| bytes
+ * are written. This may be relaxed with |SSL_MODE_ENABLE_PARTIAL_WRITE|. It
+ * allows |SSL_write| to complete with a partial result when only part of the
+ * input was written in a single record.
+ *
+ * In DTLS, neither |SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER| and
+ * |SSL_MODE_ENABLE_PARTIAL_WRITE| do anything. The caller may retry with a
+ * different buffer freely. A single call to |SSL_write| only ever writes a
+ * single record in a single packet, so |num| must be at most
+ * |SSL3_RT_MAX_PLAIN_LENGTH|.
  *
  * TODO(davidben): Ensure 0 is only returned on transport EOF.
  * https://crbug.com/466303. */
@@ -396,7 +402,7 @@ OPENSSL_EXPORT int SSL_get_error(const SSL *ssl, int ret_code);
  * |SSL_do_handshake|. */
 #define SSL_ERROR_WANT_READ 2
 
-/* SSL_ERROR_WANT_READ indicates the operation failed attempting to write to
+/* SSL_ERROR_WANT_WRITE indicates the operation failed attempting to write to
  * the transport. The caller may retry the operation when the transport is ready
  * for writing. */
 #define SSL_ERROR_WANT_WRITE 3
@@ -482,11 +488,18 @@ OPENSSL_EXPORT int DTLSv1_get_timeout(const SSL *ssl, struct timeval *out);
  * flight of handshake messages and returns 1. If too many timeouts had expired
  * without progress or an error occurs, it returns -1.
  *
- * NOTE: The caller's external timer should be compatible with the one |ssl|
- * queries within some fudge factor. Otherwise, the call will be a no-op, but
+ * The caller's external timer should be compatible with the one |ssl| queries
+ * within some fudge factor. Otherwise, the call will be a no-op, but
  * |DTLSv1_get_timeout| will return an updated timeout.
  *
- * WARNING: This function breaks the usual return value convention. */
+ * If the function returns -1, checking if |SSL_get_error| returns
+ * |SSL_ERROR_WANT_WRITE| may be used to determine if the retransmit failed due
+ * to a non-fatal error at the write |BIO|. However, the operation may not be
+ * retried until the next timeout fires.
+ *
+ * WARNING: This function breaks the usual return value convention.
+ *
+ * TODO(davidben): This |SSL_ERROR_WANT_WRITE| behavior is kind of bizarre. */
 OPENSSL_EXPORT int DTLSv1_handle_timeout(SSL *ssl);
 
 
@@ -596,14 +609,16 @@ OPENSSL_EXPORT uint32_t SSL_get_options(const SSL *ssl);
  *
  * Modes configure API behavior. */
 
-/* SSL_MODE_ENABLE_PARTIAL_WRITE allows |SSL_write| to complete with a partial
- * result when the only part of the input was written in a single record. */
+/* SSL_MODE_ENABLE_PARTIAL_WRITE, in TLS, allows |SSL_write| to complete with a
+ * partial result when the only part of the input was written in a single
+ * record. In DTLS, it does nothing. */
 #define SSL_MODE_ENABLE_PARTIAL_WRITE 0x00000001L
 
-/* SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER allows retrying an incomplete |SSL_write|
- * with a different buffer. However, |SSL_write| still assumes the buffer
- * contents are unchanged. This is not the default to avoid the misconception
- * that non-blocking |SSL_write| behaves like non-blocking |write|. */
+/* SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER, in TLS, allows retrying an incomplete
+ * |SSL_write| with a different buffer. However, |SSL_write| still assumes the
+ * buffer contents are unchanged. This is not the default to avoid the
+ * misconception that non-blocking |SSL_write| behaves like non-blocking
+ * |write|. In DTLS, it does nothing. */
 #define SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER 0x00000002L
 
 /* SSL_MODE_NO_AUTO_CHAIN disables automatically building a certificate chain
@@ -1027,8 +1042,14 @@ OPENSSL_EXPORT int SSL_CIPHER_is_AES(const SSL_CIPHER *cipher);
 /* SSL_CIPHER_has_MD5_HMAC returns one if |cipher| uses HMAC-MD5. */
 OPENSSL_EXPORT int SSL_CIPHER_has_MD5_HMAC(const SSL_CIPHER *cipher);
 
+/* SSL_CIPHER_has_SHA1_HMAC returns one if |cipher| uses HMAC-SHA1. */
+OPENSSL_EXPORT int SSL_CIPHER_has_SHA1_HMAC(const SSL_CIPHER *cipher);
+
 /* SSL_CIPHER_is_AESGCM returns one if |cipher| uses AES-GCM. */
 OPENSSL_EXPORT int SSL_CIPHER_is_AESGCM(const SSL_CIPHER *cipher);
+
+/* SSL_CIPHER_is_AES128GCM returns one if |cipher| uses 128-bit AES-GCM. */
+OPENSSL_EXPORT int SSL_CIPHER_is_AES128GCM(const SSL_CIPHER *cipher);
 
 /* SSL_CIPHER_is_CHACHA20POLY1305 returns one if |cipher| uses
  * CHACHA20_POLY1305. */
@@ -1042,6 +1063,13 @@ OPENSSL_EXPORT int SSL_CIPHER_is_RC4(const SSL_CIPHER *cipher);
 
 /* SSL_CIPHER_is_block_cipher returns one if |cipher| is a block cipher. */
 OPENSSL_EXPORT int SSL_CIPHER_is_block_cipher(const SSL_CIPHER *cipher);
+
+/* SSL_CIPHER_is_ECDSA returns one if |cipher| uses ECDSA. */
+OPENSSL_EXPORT int SSL_CIPHER_is_ECDSA(const SSL_CIPHER *cipher);
+
+/* SSL_CIPHER_get_min_version returns the minimum protocol version required
+ * for |cipher|. */
+OPENSSL_EXPORT uint16_t SSL_CIPHER_get_min_version(const SSL_CIPHER *cipher);
 
 /* SSL_CIPHER_get_name returns the OpenSSL name of |cipher|. */
 OPENSSL_EXPORT const char *SSL_CIPHER_get_name(const SSL_CIPHER *cipher);
@@ -1166,13 +1194,13 @@ OPENSSL_EXPORT int SSL_CIPHER_get_bits(const SSL_CIPHER *cipher,
  * |str| as a cipher string. It returns one on success and zero on failure. */
 OPENSSL_EXPORT int SSL_CTX_set_cipher_list(SSL_CTX *ctx, const char *str);
 
-/* SSL_CTX_set_cipher_list configures the TLS 1.0+ cipher list for |ctx|,
+/* SSL_CTX_set_cipher_list_tls10 configures the TLS 1.0+ cipher list for |ctx|,
  * evaluating |str| as a cipher string. It returns one on success and zero on
  * failure. If set, servers will use this cipher suite list for TLS 1.0 or
  * higher. */
 OPENSSL_EXPORT int SSL_CTX_set_cipher_list_tls10(SSL_CTX *ctx, const char *str);
 
-/* SSL_CTX_set_cipher_list configures the TLS 1.1+ cipher list for |ctx|,
+/* SSL_CTX_set_cipher_list_tls11 configures the TLS 1.1+ cipher list for |ctx|,
  * evaluating |str| as a cipher string. It returns one on success and zero on
  * failure. If set, servers will use this cipher suite list for TLS 1.1 or
  * higher. */
@@ -2598,6 +2626,16 @@ OPENSSL_EXPORT int SSL_CTX_get_ex_new_index(long argl, void *argp,
 OPENSSL_EXPORT int SSL_get_rc4_state(const SSL *ssl, const RC4_KEY **read_key,
                                      const RC4_KEY **write_key);
 
+/* SSL_get_ivs sets |*out_iv_len| to the length of the IVs for the ciphers
+ * underlying |ssl| and sets |*out_read_iv| and |*out_write_iv| to point to the
+ * current IVs for the read and write directions. This is only meaningful for
+ * connections with implicit IVs (i.e. CBC mode with SSLv3 or TLS 1.0).
+ *
+ * It returns one on success or zero on error. */
+OPENSSL_EXPORT int SSL_get_ivs(const SSL *ssl, const uint8_t **out_read_iv,
+                               const uint8_t **out_write_iv,
+                               size_t *out_iv_len);
+
 /* SSL_get_structure_sizes returns the sizes of the SSL, SSL_CTX and
  * SSL_SESSION structures so that a test can ensure that outside code agrees on
  * these values. */
@@ -2648,6 +2686,7 @@ enum ssl_renegotiate_mode_t {
   ssl_renegotiate_never = 0,
   ssl_renegotiate_once,
   ssl_renegotiate_freely,
+  ssl_renegotiate_ignore,
 };
 
 /* SSL_set_renegotiate_mode configures how |ssl|, a client, reacts to
@@ -2656,8 +2695,10 @@ enum ssl_renegotiate_mode_t {
  *
  * The renegotiation mode defaults to |ssl_renegotiate_never|, but may be set
  * at any point in a connection's lifetime. Set it to |ssl_renegotiate_once| to
- * allow one renegotiation and |ssl_renegotiate_freely| to allow all
- * renegotiations.
+ * allow one renegotiation, |ssl_renegotiate_freely| to allow all
+ * renegotiations or |ssl_renegotiate_ignore| to ignore HelloRequest messages.
+ * Note that ignoring HelloRequest messages may cause the connection to stall
+ * if the server waits for the renegotiation to complete.
  *
  * There is no support in BoringSSL for initiating renegotiations as a client
  * or server. */
@@ -2793,10 +2834,10 @@ OPENSSL_EXPORT void SSL_CTX_set_dos_protection_cb(
 #define SSL_CB_HANDSHAKE_START 0x10
 #define SSL_CB_HANDSHAKE_DONE 0x20
 
-/* SSL_set_info_callback configures a callback to be run when various events
- * occur during a connection's lifetime. The |type| argumentj determines the
- * type of event and the meaning of the |value| argument. Callbacks must ignore
- * unexpected |type| values.
+/* SSL_CTX_set_info_callback configures a callback to be run when various
+ * events occur during a connection's lifetime. The |type| argumentj determines
+ * the type of event and the meaning of the |value| argument. Callbacks must
+ * ignore unexpected |type| values.
  *
  * |SSL_CB_READ_ALERT| is signaled for each alert received, warning or fatal.
  * The |value| argument is a 16-bit value where the alert level (either
@@ -2870,6 +2911,11 @@ OPENSSL_EXPORT SSL_CTX *SSL_set_SSL_CTX(SSL *ssl, SSL_CTX *ctx);
  * respectively. */
 OPENSSL_EXPORT int SSL_get_shutdown(const SSL *ssl);
 
+/* SSL_get_server_key_exchange_hash, on a client, returns the hash the server
+ * used to sign the ServerKeyExchange in TLS 1.2. If not applicable, it returns
+ * |TLSEXT_hash_none|. */
+OPENSSL_EXPORT uint8_t SSL_get_server_key_exchange_hash(const SSL *ssl);
+
 
 /* Deprecated functions. */
 
@@ -2909,9 +2955,9 @@ OPENSSL_EXPORT const char *SSL_COMP_get_name(const COMP_METHOD *comp);
 /* SSLv23_method calls |TLS_method|. */
 OPENSSL_EXPORT const SSL_METHOD *SSLv23_method(void);
 
-/* Version-specific methods behave exactly like |TLS_method| and |DTLS_method|
- * except they also call |SSL_CTX_set_min_version| and |SSL_CTX_set_max_version|
- * to lock connections to that protocol version. */
+/* These version-specific methods behave exactly like |TLS_method| and
+ * |DTLS_method| except they also call |SSL_CTX_set_min_version| and
+ * |SSL_CTX_set_max_version| to lock connections to that protocol version. */
 OPENSSL_EXPORT const SSL_METHOD *SSLv3_method(void);
 OPENSSL_EXPORT const SSL_METHOD *TLSv1_method(void);
 OPENSSL_EXPORT const SSL_METHOD *TLSv1_1_method(void);
@@ -2919,7 +2965,7 @@ OPENSSL_EXPORT const SSL_METHOD *TLSv1_2_method(void);
 OPENSSL_EXPORT const SSL_METHOD *DTLSv1_method(void);
 OPENSSL_EXPORT const SSL_METHOD *DTLSv1_2_method(void);
 
-/* Client- and server-specific methods call their corresponding generic
+/* These client- and server-specific methods call their corresponding generic
  * methods. */
 OPENSSL_EXPORT const SSL_METHOD *SSLv23_server_method(void);
 OPENSSL_EXPORT const SSL_METHOD *SSLv23_client_method(void);
@@ -3285,7 +3331,8 @@ OPENSSL_EXPORT int SSL_state(const SSL *ssl);
 #define SSL_get_state(ssl) SSL_state(ssl)
 
 /* SSL_state_string returns the current state of the handshake state machine as
- * a six-letter string. Use |SSL_state_string */
+ * a six-letter string. Use |SSL_state_string_long| for a more intelligible
+ * string. */
 OPENSSL_EXPORT const char *SSL_state_string(const SSL *ssl);
 
 /* SSL_set_shutdown causes |ssl| to behave as if the shutdown bitmask (see
@@ -3337,42 +3384,8 @@ struct ssl_cipher_st {
 #define SSL_MAX_MASTER_KEY_LENGTH 48
 
 struct ssl_session_st {
-  int ssl_version; /* what ssl version session info is being kept in here? */
-
-  int master_key_length;
-  uint8_t master_key[SSL_MAX_MASTER_KEY_LENGTH];
-  /* session_id - valid? */
-  unsigned int session_id_length;
-  uint8_t session_id[SSL_MAX_SSL_SESSION_ID_LENGTH];
-  /* this is used to determine whether the session is being reused in
-   * the appropriate context. It is up to the application to set this,
-   * via SSL_new */
-  unsigned int sid_ctx_length;
-  uint8_t sid_ctx[SSL_MAX_SID_CTX_LENGTH];
-
-  char *psk_identity;
-  /* Used to indicate that session resumption is not allowed. Applications can
-   * also set this bit for a new session via not_resumable_session_cb to
-   * disable session caching and tickets. */
-  int not_resumable;
-
-  /* peer is the peer's certificate. */
-  X509 *peer;
-
-  /* cert_chain is the certificate chain sent by the peer. NOTE: for historical
-   * reasons, when a client (so the peer is a server), the chain includes
-   * |peer|, but when a server it does not. */
-  STACK_OF(X509) *cert_chain;
-
-  /* when app_verify_callback accepts a session where the peer's certificate is
-   * not ok, we must remember the error for session reuse: */
-  long verify_result; /* only for servers */
-
   CRYPTO_refcount_t references;
-  long timeout;
-  long time;
-
-  const SSL_CIPHER *cipher;
+  int ssl_version; /* what ssl version session info is being kept in here? */
 
   /* key_exchange_info contains an indication of the size of the asymmetric
    * primitive used in the handshake that created this session. In the event
@@ -3386,16 +3399,46 @@ struct ssl_session_st {
    * A zero indicates that the value is unknown. */
   uint32_t key_exchange_info;
 
+  int master_key_length;
+  uint8_t master_key[SSL_MAX_MASTER_KEY_LENGTH];
+
+  /* session_id - valid? */
+  unsigned int session_id_length;
+  uint8_t session_id[SSL_MAX_SSL_SESSION_ID_LENGTH];
+  /* this is used to determine whether the session is being reused in
+   * the appropriate context. It is up to the application to set this,
+   * via SSL_new */
+  unsigned int sid_ctx_length;
+  uint8_t sid_ctx[SSL_MAX_SID_CTX_LENGTH];
+
+  char *psk_identity;
+  /* peer is the peer's certificate. */
+  X509 *peer;
+
+  /* cert_chain is the certificate chain sent by the peer. NOTE: for historical
+   * reasons, when a client (so the peer is a server), the chain includes
+   * |peer|, but when a server it does not. */
+  STACK_OF(X509) *cert_chain;
+
+  /* when app_verify_callback accepts a session where the peer's certificate is
+   * not ok, we must remember the error for session reuse: */
+  long verify_result; /* only for servers */
+
+  long timeout;
+  long time;
+
+  const SSL_CIPHER *cipher;
+
   CRYPTO_EX_DATA ex_data; /* application specific data */
 
   /* These are used to make removal of session-ids more efficient and to
    * implement a maximum cache size. */
   SSL_SESSION *prev, *next;
   char *tlsext_hostname;
+
   /* RFC4507 info */
   uint8_t *tlsext_tick;               /* Session ticket */
   size_t tlsext_ticklen;              /* Session ticket length */
-  uint32_t tlsext_tick_lifetime_hint; /* Session lifetime hint in seconds */
 
   size_t tlsext_signed_cert_timestamp_list_length;
   uint8_t *tlsext_signed_cert_timestamp_list; /* Server's list. */
@@ -3404,20 +3447,30 @@ struct ssl_session_st {
   size_t ocsp_response_length;
   uint8_t *ocsp_response;
 
-  char peer_sha256_valid; /* Non-zero if peer_sha256 is valid */
-  uint8_t
-      peer_sha256[SHA256_DIGEST_LENGTH]; /* SHA256 of peer certificate */
+  /* peer_sha256 contains the SHA-256 hash of the peer's certificate if
+   * |peer_sha256_valid| is true. */
+  uint8_t peer_sha256[SHA256_DIGEST_LENGTH];
 
   /* original_handshake_hash contains the handshake hash (either SHA-1+MD5 or
    * SHA-2, depending on TLS version) for the original, full handshake that
    * created a session. This is used by Channel IDs during resumption. */
   uint8_t original_handshake_hash[EVP_MAX_MD_SIZE];
-  unsigned int original_handshake_hash_len;
+  unsigned original_handshake_hash_len;
+
+  uint32_t tlsext_tick_lifetime_hint; /* Session lifetime hint in seconds */
 
   /* extended_master_secret is true if the master secret in this session was
    * generated using EMS and thus isn't vulnerable to the Triple Handshake
    * attack. */
-  char extended_master_secret;
+  unsigned extended_master_secret:1;
+
+  /* peer_sha256_valid is non-zero if |peer_sha256| is valid. */
+  unsigned peer_sha256_valid:1; /* Non-zero if peer_sha256 is valid */
+
+  /* not_resumable is used to indicate that session resumption is not allowed.
+   * Applications can also set this bit for a new session via
+   * not_resumable_session_cb to disable session caching and tickets. */
+  unsigned not_resumable:1;
 };
 
 /* ssl_cipher_preference_list_st contains a list of SSL_CIPHERs with
@@ -3592,10 +3645,6 @@ struct ssl_ctx_st {
    * abort. */
   int (*dos_protection_cb) (const struct ssl_early_callback_ctx *);
 
-  /* quiet_shutdown is true if the connection should not send a close_notify on
-   * shutdown. */
-  int quiet_shutdown;
-
   /* Maximum amount of data to send in one fragment. actual record size can be
    * more than this due to padding and MAC overheads. */
   uint16_t max_send_fragment;
@@ -3669,21 +3718,12 @@ struct ssl_ctx_st {
   size_t tlsext_ellipticcurvelist_length;
   uint16_t *tlsext_ellipticcurvelist;
 
-  /* If true, a client will advertise the Channel ID extension and a server
-   * will echo it. */
-  char tlsext_channel_id_enabled;
   /* The client's Channel ID private key. */
   EVP_PKEY *tlsext_channel_id_private;
-
-  /* If true, a client will request certificate timestamps. */
-  char signed_cert_timestamps_enabled;
 
   /* Signed certificate timestamp list to be sent to the client, if requested */
   uint8_t *signed_cert_timestamp_list;
   size_t signed_cert_timestamp_list_length;
-
-  /* If true, a client will request a stapled OCSP response. */
-  char ocsp_stapling_enabled;
 
   /* OCSP response to be sent to the client, if requested. */
   uint8_t *ocsp_response;
@@ -3696,19 +3736,27 @@ struct ssl_ctx_st {
   /* current_time_cb, if not NULL, is the function to use to get the current
    * time. It sets |*out_clock| to the current time. */
   void (*current_time_cb)(const SSL *ssl, struct timeval *out_clock);
+
+  /* quiet_shutdown is true if the connection should not send a close_notify on
+   * shutdown. */
+  unsigned quiet_shutdown:1;
+
+  /* ocsp_stapling_enabled is only used by client connections and indicates
+   * whether OCSP stapling will be requested. */
+  unsigned ocsp_stapling_enabled:1;
+
+  /* If true, a client will request certificate timestamps. */
+  unsigned signed_cert_timestamps_enabled:1;
+
+  /* tlsext_channel_id_enabled is copied from the |SSL_CTX|. For a server,
+   * means that we'll accept Channel IDs from clients. For a client, means that
+   * we'll advertise support. */
+  unsigned tlsext_channel_id_enabled:1;
 };
 
 struct ssl_st {
   /* version is the protocol version. */
   int version;
-
-  /* method is the method table corresponding to the current protocol (DTLS or
-   * TLS). */
-  const SSL_PROTOCOL_METHOD *method;
-
-  /* enc_method is the method table corresponding to the current protocol
-   * version. */
-  const SSL3_ENC_METHOD *enc_method;
 
   /* max_version is the maximum acceptable protocol version. If zero, the
    * maximum supported version, currently (D)TLS 1.2, is used. */
@@ -3718,21 +3766,29 @@ struct ssl_st {
    * minimum supported version, currently SSL 3.0 and DTLS 1.0, is used */
   uint16_t min_version;
 
+  /* method is the method table corresponding to the current protocol (DTLS or
+   * TLS). */
+  const SSL_PROTOCOL_METHOD *method;
+
+  /* enc_method is the method table corresponding to the current protocol
+   * version. */
+  const SSL3_ENC_METHOD *enc_method;
+
   /* There are 2 BIO's even though they are normally both the same. This is so
    * data can be read and written to different handlers */
 
   BIO *rbio; /* used by SSL_read */
   BIO *wbio; /* used by SSL_write */
-  BIO *bbio; /* used during session-id reuse to concatenate
-              * messages */
 
-  /* This holds a variable that indicates what we were doing when a 0 or -1 is
-   * returned.  This is needed for non-blocking IO so we know what request
-   * needs re-doing when in SSL_accept or SSL_connect */
-  int rwstate;
+  /* bbio, if non-NULL, is a buffer placed in front of |wbio| to pack handshake
+   * messages within one flight into a single |BIO_write|.
+   *
+   * TODO(davidben): This does not work right for DTLS. It assumes the MTU is
+   * smaller than the buffer size so that the buffer's internal flushing never
+   * kicks in. It also doesn't kick in for DTLS retransmission. Replace this
+   * with a better mechanism. */
+  BIO *bbio;
 
-  /* true when we are actually in SSL_accept() or SSL_connect() */
-  int in_handshake;
   int (*handshake_func)(SSL *);
 
   /* Imagine that here's a boolean member "init" that is switched as soon as
@@ -3740,15 +3796,6 @@ struct ssl_st {
    * "state" and "handshake_func" are properly initialized.  But as
    * handshake_func is == 0 until then, we use this test instead of an "init"
    * member. */
-
-  /* server is true iff the this SSL* is the server half. Note: before the SSL*
-   * is initialized by either SSL_set_accept_state or SSL_set_connect_state,
-   * the side is not determined. In this state, server is always false. */
-  int server;
-
-  /* quiet_shutdown is true if the connection should not send a close_notify on
-   * shutdown. */
-  int quiet_shutdown;
 
   int shutdown; /* we have shut things down, 0x01 sent, 0x02
                  * for received */
@@ -3768,8 +3815,6 @@ struct ssl_st {
                        const void *buf, size_t len, SSL *ssl, void *arg);
   void *msg_callback_arg;
 
-  int hit; /* reusing a previous session */
-
   X509_VERIFY_PARAM *param;
 
   /* crypto */
@@ -3785,6 +3830,11 @@ struct ssl_st {
   /* This is used to hold the server certificate used */
   struct cert_st /* CERT */ *cert;
 
+  /* This holds a variable that indicates what we were doing when a 0 or -1 is
+   * returned.  This is needed for non-blocking IO so we know what request
+   * needs re-doing when in SSL_accept or SSL_connect */
+  int rwstate;
+
   /* the session_id_context is used to ensure sessions are only reused
    * in the appropriate context */
   unsigned int sid_ctx_length;
@@ -3793,9 +3843,6 @@ struct ssl_st {
   /* This can also be in the session once a session is established */
   SSL_SESSION *session;
 
-  /* Used in SSL2 and SSL3 */
-  int verify_mode; /* 0 don't care about verify failure.
-                    * 1 fail if verify fails */
   int (*verify_callback)(int ok,
                          X509_STORE_CTX *ctx); /* fail if callback returns 0 */
 
@@ -3852,18 +3899,8 @@ struct ssl_st {
    * DTLS-SRTP. */
   const SRTP_PROTECTION_PROFILE *srtp_profile;
 
-  /* Copied from the SSL_CTX. For a server, means that we'll accept Channel IDs
-   * from clients. For a client, means that we'll advertise support. */
-  char tlsext_channel_id_enabled;
   /* The client's Channel ID private key. */
   EVP_PKEY *tlsext_channel_id_private;
-
-  /* Enable signed certificate time stamps. Currently client only. */
-  char signed_cert_timestamps_enabled;
-
-  /* ocsp_stapling_enabled is only used by client connections and indicates
-   * whether OCSP stapling will be requested. */
-  char ocsp_stapling_enabled;
 
   /* For a client, this contains the list of supported protocols in wire
    * format. */
@@ -3878,6 +3915,37 @@ struct ssl_st {
    * don't support. */
   EVP_CIPHER_CTX *enc_read_ctx;
   EVP_MD_CTX *read_hash;
+
+  /* in_handshake is non-zero when we are actually in SSL_accept() or
+   * SSL_connect() */
+  int in_handshake;
+
+  /* verify_mode is a bitmask of |SSL_VERIFY_*| values. */
+  uint8_t verify_mode;
+
+  /* hit is true if this connection is resuming a previous session. */
+  unsigned hit:1;
+
+  /* server is true iff the this SSL* is the server half. Note: before the SSL*
+   * is initialized by either SSL_set_accept_state or SSL_set_connect_state,
+   * the side is not determined. In this state, server is always false. */
+  unsigned server:1;
+
+  /* quiet_shutdown is true if the connection should not send a close_notify on
+   * shutdown. */
+  unsigned quiet_shutdown:1;
+
+  /* Enable signed certificate time stamps. Currently client only. */
+  unsigned signed_cert_timestamps_enabled:1;
+
+  /* ocsp_stapling_enabled is only used by client connections and indicates
+   * whether OCSP stapling will be requested. */
+  unsigned ocsp_stapling_enabled:1;
+
+  /* tlsext_channel_id_enabled is copied from the |SSL_CTX|. For a server,
+   * means that we'll accept Channel IDs from clients. For a client, means that
+   * we'll advertise support. */
+  unsigned tlsext_channel_id_enabled:1;
 };
 
 typedef struct ssl3_record_st {
@@ -4093,6 +4161,11 @@ typedef struct ssl3_state_st {
     /* Client-only: in_false_start is one if there is a pending handshake in
      * False Start. The client may write data at this point. */
     char in_false_start;
+
+    /* server_key_exchange_hash, on a client, is the hash the server used to
+     * sign the ServerKeyExchange in TLS 1.2. If not applicable, it is
+     * |TLSEXT_hash_none|. */
+    uint8_t server_key_exchange_hash;
 
     /* peer_dh_tmp, on a client, is the server's DHE public key. */
     DH *peer_dh_tmp;

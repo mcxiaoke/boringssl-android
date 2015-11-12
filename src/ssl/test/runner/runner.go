@@ -244,22 +244,36 @@ type testCase struct {
 var testCases []testCase
 
 func doExchange(test *testCase, config *Config, conn net.Conn, isResume bool) error {
-	var connDebug *recordingConn
 	var connDamage *damageAdaptor
-	if *flagDebug {
-		connDebug = &recordingConn{Conn: conn}
-		conn = connDebug
-		defer func() {
-			connDebug.WriteTo(os.Stdout)
-		}()
-	}
 
 	if test.protocol == dtls {
 		config.Bugs.PacketAdaptor = newPacketAdaptor(conn)
 		conn = config.Bugs.PacketAdaptor
-		if test.replayWrites {
-			conn = newReplayAdaptor(conn)
+	}
+
+	if *flagDebug {
+		local, peer := "client", "server"
+		if test.testType == clientTest {
+			local, peer = peer, local
 		}
+		connDebug := &recordingConn{
+			Conn:       conn,
+			isDatagram: test.protocol == dtls,
+			local:      local,
+			peer:       peer,
+		}
+		conn = connDebug
+		defer func() {
+			connDebug.WriteTo(os.Stdout)
+		}()
+
+		if config.Bugs.PacketAdaptor != nil {
+			config.Bugs.PacketAdaptor.debug = connDebug
+		}
+	}
+
+	if test.replayWrites {
+		conn = newReplayAdaptor(conn)
 	}
 
 	if test.damageFirstWrite {
@@ -2918,27 +2932,25 @@ func addStateMachineCoverageTests(async, splitHandshake bool, protocol protocol)
 		})
 	}
 
-	var suffix string
-	var flags []string
-	var maxHandshakeRecordLength int
-	if protocol == dtls {
-		suffix = "-DTLS"
-	}
-	if async {
-		suffix += "-Async"
-		flags = append(flags, "-async")
-	} else {
-		suffix += "-Sync"
-	}
-	if splitHandshake {
-		suffix += "-SplitHandshakeRecords"
-		maxHandshakeRecordLength = 1
-	}
 	for _, test := range tests {
 		test.protocol = protocol
-		test.name += suffix
-		test.config.Bugs.MaxHandshakeRecordLength = maxHandshakeRecordLength
-		test.flags = append(test.flags, flags...)
+		if protocol == dtls {
+			test.name += "-DTLS"
+		}
+		if async {
+			test.name += "-Async"
+			test.flags = append(test.flags, "-async")
+		} else {
+			test.name += "-Sync"
+		}
+		if splitHandshake {
+			test.name += "-SplitHandshakeRecords"
+			test.config.Bugs.MaxHandshakeRecordLength = 1
+			if protocol == dtls {
+				test.config.Bugs.MaxPacketLength = 256
+				test.flags = append(test.flags, "-mtu", "256")
+			}
+		}
 		testCases = append(testCases, test)
 	}
 }
@@ -3906,6 +3918,28 @@ func addRenegotiationTests() {
 			"-expect-total-renegotiations", "2",
 		},
 	})
+	testCases = append(testCases, testCase{
+		name: "Renegotiate-Client-NoIgnore",
+		config: Config{
+			Bugs: ProtocolBugs{
+				SendHelloRequestBeforeEveryAppDataRecord: true,
+			},
+		},
+		shouldFail:    true,
+		expectedError: ":NO_RENEGOTIATION:",
+	})
+	testCases = append(testCases, testCase{
+		name: "Renegotiate-Client-Ignore",
+		config: Config{
+			Bugs: ProtocolBugs{
+				SendHelloRequestBeforeEveryAppDataRecord: true,
+			},
+		},
+		flags: []string{
+			"-renegotiate-ignore",
+			"-expect-total-renegotiations", "0",
+		},
+	})
 }
 
 func addDTLSReplayTests() {
@@ -3991,6 +4025,19 @@ func addSigningHashTests() {
 					{signatureRSA, 255},
 				},
 			},
+		})
+
+		testCases = append(testCases, testCase{
+			name: "SigningHash-ServerKeyExchange-Verify-" + hash.name,
+			config: Config{
+				CipherSuites: []uint16{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
+				SignatureAndHashes: []signatureAndHash{
+					{signatureRSA, 42},
+					{signatureRSA, hash.id},
+					{signatureRSA, 255},
+				},
+			},
+			flags: []string{"-expect-server-key-exchange-hash", strconv.Itoa(int(hash.id))},
 		})
 	}
 
