@@ -55,6 +55,7 @@ LOCAL_MODULE_HOST_OS := darwin linux windows
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/src/include
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/crypto-sources.mk
 LOCAL_CFLAGS += -fvisibility=hidden -DBORINGSSL_SHARED_LIBRARY -DBORINGSSL_IMPLEMENTATION -DOPENSSL_SMALL -Wno-unused-parameter
+LOCAL_CXX_STL := none
 # Windows and Macs both have problems with assembly files
 LOCAL_CFLAGS_darwin += -DOPENSSL_NO_ASM
 LOCAL_CFLAGS_windows += -DOPENSSL_NO_ASM
@@ -72,6 +73,7 @@ LOCAL_CFLAGS += -fvisibility=hidden -DBORINGSSL_SHARED_LIBRARY -DBORINGSSL_IMPLE
 # Windows and Macs both have problems with assembly files
 LOCAL_CFLAGS_darwin += -DOPENSSL_NO_ASM
 LOCAL_CFLAGS_windows += -DOPENSSL_NO_ASM
+LOCAL_CXX_STL := none
 include $(LOCAL_PATH)/crypto-sources.mk
 include $(BUILD_HOST_SHARED_LIBRARY)
 
@@ -108,6 +110,7 @@ LOCAL_MODULE := libssl_static-host
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/src/include
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/ssl-sources.mk
 LOCAL_CFLAGS += -fvisibility=hidden -DBORINGSSL_SHARED_LIBRARY -DBORINGSSL_IMPLEMENTATION -DOPENSSL_SMALL -Wno-unused-parameter
+LOCAL_CXX_STL := none
 include $(LOCAL_PATH)/ssl-sources.mk
 include $(BUILD_HOST_STATIC_LIBRARY)
 
@@ -136,6 +139,7 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/src/include
 LOCAL_MULTILIB := both
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk $(LOCAL_PATH)/ssl-sources.mk
 LOCAL_CFLAGS += -fvisibility=hidden -DBORINGSSL_SHARED_LIBRARY -DBORINGSSL_IMPLEMENTATION -DOPENSSL_SMALL -Wno-unused-parameter
+LOCAL_CXX_STL := none
 LOCAL_SHARED_LIBRARIES += libcrypto-host
 include $(LOCAL_PATH)/ssl-sources.mk
 include $(BUILD_HOST_SHARED_LIBRARY)
