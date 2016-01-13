@@ -39,9 +39,10 @@ OS_ARCH_COMBOS = [
 # perlasm system.
 NON_PERL_FILES = {
     ('linux', 'arm'): [
-        'src/crypto/poly1305/poly1305_arm_asm.S',
         'src/crypto/chacha/chacha_vec_arm.S',
         'src/crypto/cpu-arm-asm.S',
+        'src/crypto/curve25519/asm/x25519-asm-arm.S',
+        'src/crypto/poly1305/poly1305_arm_asm.S',
     ],
 }
 
@@ -149,8 +150,8 @@ class Android(object):
     with open('sources.mk', 'w+') as makefile:
       makefile.write(self.header)
 
-      files['crypto'].extend(self.ExtraFiles())
-      self.PrintVariableSection(makefile, 'crypto_sources', files['crypto'])
+      crypto_files = files['crypto'] + self.ExtraFiles()
+      self.PrintVariableSection(makefile, 'crypto_sources', crypto_files)
       self.PrintVariableSection(makefile, 'ssl_sources', files['ssl'])
       self.PrintVariableSection(makefile, 'tool_sources', files['tool'])
 

@@ -253,6 +253,9 @@ OPENSSL_EXPORT size_t BN_bn2bin(const BIGNUM *in, uint8_t *out);
  * returns 0. Otherwise, it returns 1. */
 OPENSSL_EXPORT int BN_bn2bin_padded(uint8_t *out, size_t len, const BIGNUM *in);
 
+/* BN_bn2cbb_padded behaves like |BN_bn2bin_padded| but writes to a |CBB|. */
+OPENSSL_EXPORT int BN_bn2cbb_padded(CBB *out, size_t len, const BIGNUM *in);
+
 /* BN_bn2hex returns an allocated string that contains a NUL-terminated, hex
  * representation of |bn|. If |bn| is negative, the first char in the resulting
  * string will be '-'. Returns NULL on allocation failure. */
@@ -836,11 +839,7 @@ struct bignum_st {
 struct bn_mont_ctx_st {
   BIGNUM RR; /* used to convert to montgomery form */
   BIGNUM N;  /* The modulus */
-  BIGNUM Ni; /* R*(1/R mod N) - N*Ni = 1
-              * (Ni is only stored for bignum algorithm) */
-  BN_ULONG n0[2]; /* least significant word(s) of Ni;
-                     (type changed with 0.9.9, was "BN_ULONG n0;" before) */
-  int ri;    /* number of bits in R */
+  BN_ULONG n0[2]; /* least significant words of (R*Ri-1)/N */
 };
 
 OPENSSL_EXPORT unsigned BN_num_bits_word(BN_ULONG l);

@@ -106,7 +106,7 @@ static const felem_bytearray nistp224_curve_params[5] = {
  * The reason for this is so that we can clock bits into four different
  * locations when doing simple scalar multiplies against the base point,
  * and then another four locations using the second 16 elements. */
-static const felem gmul[2][16][3] = {
+static const felem g_pre_comp[2][16][3] = {
     {{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
      {{0x3280d6115c1d21, 0xc1d356c2112234, 0x7f321390b94a03, 0xb70e0cbd6bb4bf},
       {0xd5819985007e34, 0x75a05a07476444, 0xfb4c22dfe6cd43, 0xbd376388b5f723},
@@ -937,8 +937,7 @@ static char get_bit(const felem_bytearray in, unsigned i) {
 static void batch_mul(felem x_out, felem y_out, felem z_out,
                       const felem_bytearray scalars[],
                       const unsigned num_points, const u8 *g_scalar,
-                      const int mixed, const felem pre_comp[][17][3],
-                      const felem g_pre_comp[2][16][3]) {
+                      const int mixed, const felem pre_comp[][17][3]) {
   int i, skip;
   unsigned num;
   unsigned gen_mul = (g_scalar != NULL);
@@ -1122,12 +1121,16 @@ static void make_points_affine(size_t num, felem points[/*num*/][3],
       (void (*)(void *, const void *))felem_contract);
 }
 
-/* Computes scalar*generator + \sum scalars[i]*points[i], ignoring NULL values
- * Result is stored in r (r can equal one of the inputs). */
 int ec_GFp_nistp224_points_mul(const EC_GROUP *group, EC_POINT *r,
-                               const BIGNUM *scalar, size_t num,
-                               const EC_POINT *points[],
-                               const BIGNUM *scalars[], BN_CTX *ctx) {
+                               const BIGNUM *g_scalar, const EC_POINT *p_,
+                               const BIGNUM *p_scalar_, BN_CTX *ctx) {
+  /* TODO: This function used to take |points| and |scalars| as arrays of
+   * |num| elements. The code below should be simplified to work in terms of
+   * |p_| and |p_scalar_|. */
+  size_t num = p_ != NULL ? 1 : 0;
+  const EC_POINT **points = p_ != NULL ? &p_ : NULL;
+  BIGNUM const *const *scalars = p_ != NULL ? &p_scalar_ : NULL;
+
   int ret = 0;
   int j;
   unsigned i;
@@ -1140,11 +1143,8 @@ int ec_GFp_nistp224_points_mul(const EC_GROUP *group, EC_POINT *r,
   felem *tmp_felems = NULL;
   felem_bytearray tmp;
   unsigned num_bytes;
-  int have_pre_comp = 0;
   size_t num_points = num;
   felem x_in, y_in, z_in, x_out, y_out, z_out;
-  const felem(*g_pre_comp)[16][3] = NULL;
-  EC_POINT *generator = NULL;
   const EC_POINT *p = NULL;
   const BIGNUM *p_scalar = NULL;
 
@@ -1164,35 +1164,6 @@ int ec_GFp_nistp224_points_mul(const EC_GROUP *group, EC_POINT *r,
     goto err;
   }
 
-  if (scalar != NULL) {
-    /* try to use the standard precomputation */
-    g_pre_comp = &gmul[0];
-    generator = EC_POINT_new(group);
-    if (generator == NULL) {
-      goto err;
-    }
-    /* get the generator from precomputation */
-    if (!felem_to_BN(x, g_pre_comp[0][1][0]) ||
-        !felem_to_BN(y, g_pre_comp[0][1][1]) ||
-        !felem_to_BN(z, g_pre_comp[0][1][2])) {
-      OPENSSL_PUT_ERROR(EC, ERR_R_BN_LIB);
-      goto err;
-    }
-    if (!ec_point_set_Jprojective_coordinates_GFp(group, generator, x, y, z,
-                                                  ctx)) {
-      goto err;
-    }
-
-    if (0 == EC_POINT_cmp(group, generator, group->generator, ctx)) {
-      /* precomputation matches generator */
-      have_pre_comp = 1;
-    } else {
-      /* we don't have valid precomputation:
-       * treat the generator as a random point */
-      num_points = num_points + 1;
-    }
-  }
-
   if (num_points > 0) {
     if (num_points >= 3) {
       /* unless we precompute multiples for just one or two points,
@@ -1200,7 +1171,7 @@ int ec_GFp_nistp224_points_mul(const EC_GROUP *group, EC_POINT *r,
       mixed = 1;
     }
     secrets = OPENSSL_malloc(num_points * sizeof(felem_bytearray));
-    pre_comp = OPENSSL_malloc(num_points * 17 * 3 * sizeof(felem));
+    pre_comp = OPENSSL_malloc(num_points * sizeof(felem[17][3]));
     if (mixed) {
       tmp_felems = OPENSSL_malloc((num_points * 17 + 1) * sizeof(felem));
     }
@@ -1219,7 +1190,7 @@ int ec_GFp_nistp224_points_mul(const EC_GROUP *group, EC_POINT *r,
       if (i == num) {
         /* the generator */
         p = EC_GROUP_get0_generator(group);
-        p_scalar = scalar;
+        p_scalar = g_scalar;
       } else {
         /* the i^th point */
         p = points[i];
@@ -1227,7 +1198,7 @@ int ec_GFp_nistp224_points_mul(const EC_GROUP *group, EC_POINT *r,
       }
 
       if (p_scalar != NULL && p != NULL) {
-        /* reduce scalar to 0 <= scalar < 2^224 */
+        /* reduce g_scalar to 0 <= g_scalar < 2^224 */
         if (BN_num_bits(p_scalar) > 224 || BN_is_negative(p_scalar)) {
           /* this is an unusual input, and we don't guarantee
            * constant-timeness */
@@ -1272,31 +1243,25 @@ int ec_GFp_nistp224_points_mul(const EC_GROUP *group, EC_POINT *r,
     }
   }
 
-  /* the scalar for the generator */
-  if (scalar != NULL && have_pre_comp) {
+  if (g_scalar != NULL) {
     memset(g_secret, 0, sizeof(g_secret));
-    /* reduce scalar to 0 <= scalar < 2^224 */
-    if (BN_num_bits(scalar) > 224 || BN_is_negative(scalar)) {
+    /* reduce g_scalar to 0 <= g_scalar < 2^224 */
+    if (BN_num_bits(g_scalar) > 224 || BN_is_negative(g_scalar)) {
       /* this is an unusual input, and we don't guarantee constant-timeness */
-      if (!BN_nnmod(tmp_scalar, scalar, &group->order, ctx)) {
+      if (!BN_nnmod(tmp_scalar, g_scalar, &group->order, ctx)) {
         OPENSSL_PUT_ERROR(EC, ERR_R_BN_LIB);
         goto err;
       }
       num_bytes = BN_bn2bin(tmp_scalar, tmp);
     } else {
-      num_bytes = BN_bn2bin(scalar, tmp);
+      num_bytes = BN_bn2bin(g_scalar, tmp);
     }
 
     flip_endian(g_secret, tmp, num_bytes);
-    /* do the multiplication with generator precomputation */
-    batch_mul(x_out, y_out, z_out, (const felem_bytearray(*))secrets,
-              num_points, g_secret, mixed, (const felem(*)[17][3])pre_comp,
-              g_pre_comp);
-  } else {
-    /* do the multiplication without generator precomputation */
-    batch_mul(x_out, y_out, z_out, (const felem_bytearray(*))secrets,
-              num_points, NULL, mixed, (const felem(*)[17][3])pre_comp, NULL);
   }
+  batch_mul(x_out, y_out, z_out, (const felem_bytearray(*))secrets,
+            num_points, g_scalar != NULL ? g_secret : NULL, mixed,
+            (const felem(*)[17][3])pre_comp);
 
   /* reduce the output to its unique minimal representation */
   felem_contract(x_in, x_out);
@@ -1312,7 +1277,6 @@ int ec_GFp_nistp224_points_mul(const EC_GROUP *group, EC_POINT *r,
 
 err:
   BN_CTX_end(ctx);
-  EC_POINT_free(generator);
   BN_CTX_free(new_ctx);
   OPENSSL_free(secrets);
   OPENSSL_free(pre_comp);
@@ -1328,7 +1292,7 @@ const EC_METHOD *EC_GFp_nistp224_method(void) {
                                 ec_GFp_nistp224_group_set_curve,
                                 ec_GFp_nistp224_point_get_affine_coordinates,
                                 ec_GFp_nistp224_points_mul,
-                                0 /* precompute_mult */,
+                                0 /* check_pub_key_order */,
                                 ec_GFp_simple_field_mul,
                                 ec_GFp_simple_field_sqr,
                                 0 /* field_encode */,

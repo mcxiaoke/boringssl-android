@@ -50,7 +50,9 @@ static const char kRule1[] =
     "ECDHE-RSA-AES128-GCM-SHA256";
 
 static const ExpectedCipher kExpected1[] = {
+  { TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0 },
   { TLS1_CK_ECDHE_ECDSA_CHACHA20_POLY1305_OLD, 0 },
+  { TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0 },
   { TLS1_CK_ECDHE_RSA_CHACHA20_POLY1305_OLD, 0 },
   { TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0 },
   { TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0 },
@@ -67,8 +69,10 @@ static const char kRule2[] =
     "+aRSA";
 
 static const ExpectedCipher kExpected2[] = {
+  { TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0 },
   { TLS1_CK_ECDHE_ECDSA_CHACHA20_POLY1305_OLD, 0 },
   { TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0 },
+  { TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0 },
   { TLS1_CK_ECDHE_RSA_CHACHA20_POLY1305_OLD, 0 },
   { TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0 },
   { 0, 0 },
@@ -83,6 +87,7 @@ static const char kRule3[] =
     "ECDHE-RSA-AES128-GCM-SHA256";
 
 static const ExpectedCipher kExpected3[] = {
+  { TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0 },
   { TLS1_CK_ECDHE_ECDSA_CHACHA20_POLY1305_OLD, 0 },
   { TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0 },
   { 0, 0 },
@@ -119,7 +124,9 @@ static const char kRule6[] =
     "BOGUS1:-BOGUS2:+BOGUS3:!BOGUS4";
 
 static const ExpectedCipher kExpected6[] = {
+  { TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0 },
   { TLS1_CK_ECDHE_ECDSA_CHACHA20_POLY1305_OLD, 0 },
+  { TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0 },
   { TLS1_CK_ECDHE_RSA_CHACHA20_POLY1305_OLD, 0 },
   { TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0 },
   { TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0 },
@@ -133,8 +140,10 @@ static const char kRule7[] =
     "ECDHE-RSA-AES128-GCM-SHA256";
 
 static const ExpectedCipher kExpected7[] = {
+  { TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 1 },
   { TLS1_CK_ECDHE_ECDSA_CHACHA20_POLY1305_OLD, 1 },
   { TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0 },
+  { TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 1 },
   { TLS1_CK_ECDHE_RSA_CHACHA20_POLY1305_OLD, 0 },
   { TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0 },
   { 0, 0 },
@@ -157,6 +166,7 @@ static const char kRule8[] =
 
 static const ExpectedCipher kExpected8[] = {
   { TLS1_CK_ECDHE_RSA_WITH_AES_256_CBC_SHA, 0 },
+  { TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0 },
   { TLS1_CK_ECDHE_RSA_CHACHA20_POLY1305_OLD, 0 },
   { TLS1_CK_ECDHE_RSA_WITH_RC4_128_SHA, 0 },
   { TLS1_CK_ECDHE_RSA_WITH_AES_128_CBC_SHA, 0 },
@@ -169,13 +179,55 @@ static const ExpectedCipher kExpected8[] = {
 // Exact ciphers may not be used in multi-part rules; they are treated
 // as unknown aliases.
 static const char kRule9[] =
+    "ECDHE-ECDSA-AES128-GCM-SHA256:"
+    "ECDHE-RSA-AES128-GCM-SHA256:"
+    "!ECDHE-RSA-AES128-GCM-SHA256+RSA:"
+    "!ECDSA+ECDHE-ECDSA-AES128-GCM-SHA256";
+
+static const ExpectedCipher kExpected9[] = {
+  { TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0 },
+  { TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0 },
+  { 0, 0 },
+};
+
+// SSLv3 matches everything that existed before TLS 1.2.
+static const char kRule10[] = "AES128-SHA:AES128-SHA256:!SSLv3";
+
+static const ExpectedCipher kExpected10[] = {
+  { TLS1_CK_RSA_WITH_AES_128_SHA256, 0 },
+  { 0, 0 },
+};
+
+// TLSv1.2 matches everything added in TLS 1.2.
+static const char kRule11[] = "AES128-SHA:AES128-SHA256:!TLSv1.2";
+
+static const ExpectedCipher kExpected11[] = {
+  { TLS1_CK_RSA_WITH_AES_128_SHA, 0 },
+  { 0, 0 },
+};
+
+// The two directives have no intersection.
+static const char kRule12[] = "AES128-SHA:AES128-SHA256:!TLSv1.2+SSLv3";
+
+static const ExpectedCipher kExpected12[] = {
+  { TLS1_CK_RSA_WITH_AES_128_SHA, 0 },
+  { TLS1_CK_RSA_WITH_AES_128_SHA256, 0 },
+  { 0, 0 },
+};
+
+// The shared name of the CHACHA20_POLY1305 variants behaves like a cipher name
+// and not an alias. It may not be used in a multipart rule. (That the shared
+// name works is covered by the standard tests.)
+static const char kRule13[] =
     "ECDHE-ECDSA-CHACHA20-POLY1305:"
     "ECDHE-RSA-CHACHA20-POLY1305:"
     "!ECDHE-RSA-CHACHA20-POLY1305+RSA:"
     "!ECDSA+ECDHE-ECDSA-CHACHA20-POLY1305";
 
-static const ExpectedCipher kExpected9[] = {
+static const ExpectedCipher kExpected13[] = {
+  { TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0 },
   { TLS1_CK_ECDHE_ECDSA_CHACHA20_POLY1305_OLD, 0 },
+  { TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0 },
   { TLS1_CK_ECDHE_RSA_CHACHA20_POLY1305_OLD, 0 },
   { 0, 0 },
 };
@@ -190,6 +242,10 @@ static CipherTest kCipherTests[] = {
   { kRule7, kExpected7 },
   { kRule8, kExpected8 },
   { kRule9, kExpected9 },
+  { kRule10, kExpected10 },
+  { kRule11, kExpected11 },
+  { kRule12, kExpected12 },
+  { kRule13, kExpected13 },
   { NULL, NULL },
 };
 
@@ -222,6 +278,8 @@ static const char *kMustNotIncludeNull[] = {
   "DEFAULT",
   "ALL:!eNULL",
   "ALL:!NULL",
+  "MEDIUM",
+  "HIGH",
   "FIPS",
   "SHA",
   "SHA1",
@@ -521,7 +579,7 @@ static bool DecodeBase64(std::vector<uint8_t> *out, const char *in) {
   }
 
   out->resize(len);
-  if (!EVP_DecodeBase64(bssl::vector_data(out), &len, len, (const uint8_t *)in,
+  if (!EVP_DecodeBase64(out->data(), &len, len, (const uint8_t *)in,
                         strlen(in))) {
     fprintf(stderr, "EVP_DecodeBase64 failed\n");
     return false;
@@ -541,8 +599,7 @@ static bool TestSSL_SESSIONEncoding(const char *input_b64) {
   }
 
   // Verify the SSL_SESSION decodes.
-  ScopedSSL_SESSION session(SSL_SESSION_from_bytes(bssl::vector_data(&input),
-                                                   input.size()));
+  ScopedSSL_SESSION session(SSL_SESSION_from_bytes(input.data(), input.size()));
   if (!session) {
     fprintf(stderr, "SSL_SESSION_from_bytes failed\n");
     return false;
@@ -558,7 +615,7 @@ static bool TestSSL_SESSIONEncoding(const char *input_b64) {
   }
   encoded.reset(encoded_raw);
   if (encoded_len != input.size() ||
-      memcmp(bssl::vector_data(&input), encoded.get(), input.size()) != 0) {
+      memcmp(input.data(), encoded.get(), input.size()) != 0) {
     fprintf(stderr, "SSL_SESSION_to_bytes did not round-trip\n");
     hexdump(stderr, "Before: ", input.data(), input.size());
     hexdump(stderr, "After:  ", encoded_raw, encoded_len);
@@ -566,9 +623,9 @@ static bool TestSSL_SESSIONEncoding(const char *input_b64) {
   }
 
   // Verify the SSL_SESSION also decodes with the legacy API.
-  cptr = bssl::vector_data(&input);
+  cptr = input.data();
   session.reset(d2i_SSL_SESSION(NULL, &cptr, input.size()));
-  if (!session || cptr != bssl::vector_data(&input) + input.size()) {
+  if (!session || cptr != input.data() + input.size()) {
     fprintf(stderr, "d2i_SSL_SESSION failed\n");
     return false;
   }
@@ -596,7 +653,7 @@ static bool TestSSL_SESSIONEncoding(const char *input_b64) {
     fprintf(stderr, "i2d_SSL_SESSION did not advance ptr correctly\n");
     return false;
   }
-  if (memcmp(bssl::vector_data(&input), encoded.get(), input.size()) != 0) {
+  if (memcmp(input.data(), encoded.get(), input.size()) != 0) {
     fprintf(stderr, "i2d_SSL_SESSION did not round-trip\n");
     return false;
   }
@@ -611,8 +668,7 @@ static bool TestBadSSL_SESSIONEncoding(const char *input_b64) {
   }
 
   // Verify that the SSL_SESSION fails to decode.
-  ScopedSSL_SESSION session(SSL_SESSION_from_bytes(bssl::vector_data(&input),
-                                                   input.size()));
+  ScopedSSL_SESSION session(SSL_SESSION_from_bytes(input.data(), input.size()));
   if (session) {
     fprintf(stderr, "SSL_SESSION_from_bytes unexpectedly succeeded\n");
     return false;
@@ -668,6 +724,8 @@ static const CIPHER_RFC_NAME_TEST kCipherRFCNameTests[] = {
   { TLS1_CK_PSK_WITH_RC4_128_SHA, "TLS_PSK_WITH_RC4_SHA" },
   { TLS1_CK_ECDHE_PSK_WITH_AES_128_CBC_SHA,
     "TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA" },
+  { TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+    "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256" },
   // These names are non-standard:
   { TLS1_CK_ECDHE_RSA_CHACHA20_POLY1305_OLD,
     "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256" },
@@ -700,8 +758,7 @@ static ScopedSSL_SESSION CreateSessionWithTicket(size_t ticket_len) {
   if (!DecodeBase64(&der, kOpenSSLSession)) {
     return nullptr;
   }
-  ScopedSSL_SESSION session(SSL_SESSION_from_bytes(bssl::vector_data(&der),
-                                                   der.size()));
+  ScopedSSL_SESSION session(SSL_SESSION_from_bytes(der.data(), der.size()));
   if (!session) {
     return nullptr;
   }

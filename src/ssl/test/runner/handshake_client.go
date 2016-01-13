@@ -98,7 +98,7 @@ func (c *Conn) clientHandshake() error {
 		}
 	}
 
-	if c.config.Bugs.NoRenegotiationInfo {
+	if c.noRenegotiationInfo() {
 		hello.secureRenegotiation = nil
 	}
 
@@ -282,7 +282,7 @@ NextCipherSuite:
 		return errors.New("tls: renegotiation extension missing")
 	}
 
-	if len(c.clientVerify) > 0 && !c.config.Bugs.NoRenegotiationInfo {
+	if len(c.clientVerify) > 0 && !c.noRenegotiationInfo() {
 		var expectedRenegInfo []byte
 		expectedRenegInfo = append(expectedRenegInfo, c.clientVerify...)
 		expectedRenegInfo = append(expectedRenegInfo, c.serverVerify...)
@@ -924,7 +924,11 @@ func (hs *clientHandshakeState) sendFinished(out []byte, isResume bool) error {
 
 	if !c.config.Bugs.SkipChangeCipherSpec &&
 		c.config.Bugs.EarlyChangeCipherSpec == 0 {
-		c.writeRecord(recordTypeChangeCipherSpec, []byte{1})
+		ccs := []byte{1}
+		if c.config.Bugs.BadChangeCipherSpec != nil {
+			ccs = c.config.Bugs.BadChangeCipherSpec
+		}
+		c.writeRecord(recordTypeChangeCipherSpec, ccs)
 	}
 
 	if c.config.Bugs.AppDataAfterChangeCipherSpec != nil {

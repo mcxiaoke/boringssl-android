@@ -27,6 +27,7 @@ import (
 var (
 	useValgrind     = flag.Bool("valgrind", false, "If true, run code under valgrind")
 	useGDB          = flag.Bool("gdb", false, "If true, run BoringSSL code under gdb")
+	useLLDB         = flag.Bool("lldb", false, "If true, run BoringSSL code under lldb")
 	flagDebug       = flag.Bool("debug", false, "Hexdump the contents of the connection")
 	mallocTest      = flag.Int64("malloc-test", -1, "If non-negative, run each test with each malloc in turn failing from the given number onwards.")
 	mallocTestDebug = flag.Bool("malloc-test-debug", false, "If true, ask bssl_shim to abort rather than fail a malloc. This can be used with a specific value for --malloc-test to identity the malloc failing that is causing problems.")
@@ -521,6 +522,14 @@ func gdbOf(path string, args ...string) *exec.Cmd {
 	return exec.Command("xterm", xtermArgs...)
 }
 
+func lldbOf(path string, args ...string) *exec.Cmd {
+	xtermArgs := []string{"-e", "lldb", "--"}
+	xtermArgs = append(xtermArgs, path)
+	xtermArgs = append(xtermArgs, args...)
+
+	return exec.Command("xterm", xtermArgs...)
+}
+
 type moreMallocsError struct{}
 
 func (moreMallocsError) Error() string {
@@ -637,6 +646,8 @@ func runTest(test *testCase, shimPath string, mallocNumToFail int64) error {
 		shim = valgrindOf(false, shimPath, flags...)
 	} else if *useGDB {
 		shim = gdbOf(shimPath, flags...)
+	} else if *useLLDB {
+		shim = lldbOf(shimPath, flags...)
 	} else {
 		shim = exec.Command(shimPath, flags...)
 	}
@@ -801,6 +812,7 @@ var testCipherSuites = []struct {
 	{"ECDHE-ECDSA-AES256-SHA", TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
 	{"ECDHE-ECDSA-AES256-SHA384", TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384},
 	{"ECDHE-ECDSA-CHACHA20-POLY1305", TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256},
+	{"ECDHE-ECDSA-CHACHA20-POLY1305-OLD", TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256_OLD},
 	{"ECDHE-ECDSA-RC4-SHA", TLS_ECDHE_ECDSA_WITH_RC4_128_SHA},
 	{"ECDHE-RSA-AES128-GCM", TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
 	{"ECDHE-RSA-AES128-SHA", TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA},
@@ -809,11 +821,13 @@ var testCipherSuites = []struct {
 	{"ECDHE-RSA-AES256-SHA", TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA},
 	{"ECDHE-RSA-AES256-SHA384", TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384},
 	{"ECDHE-RSA-CHACHA20-POLY1305", TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256},
+	{"ECDHE-RSA-CHACHA20-POLY1305-OLD", TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256_OLD},
 	{"ECDHE-RSA-RC4-SHA", TLS_ECDHE_RSA_WITH_RC4_128_SHA},
 	{"PSK-AES128-CBC-SHA", TLS_PSK_WITH_AES_128_CBC_SHA},
 	{"PSK-AES256-CBC-SHA", TLS_PSK_WITH_AES_256_CBC_SHA},
 	{"ECDHE-PSK-AES128-CBC-SHA", TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA},
 	{"ECDHE-PSK-AES256-CBC-SHA", TLS_ECDHE_PSK_WITH_AES_256_CBC_SHA},
+	{"ECDHE-PSK-CHACHA20-POLY1305", TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256},
 	{"PSK-RC4-SHA", TLS_PSK_WITH_RC4_128_SHA},
 	{"RC4-MD5", TLS_RSA_WITH_RC4_128_MD5},
 	{"RC4-SHA", TLS_RSA_WITH_RC4_128_SHA},
@@ -822,6 +836,12 @@ var testCipherSuites = []struct {
 
 func hasComponent(suiteName, component string) bool {
 	return strings.Contains("-"+suiteName+"-", "-"+component+"-")
+}
+
+func isTLSOnly(suiteName string) bool {
+	// BoringSSL doesn't support ECDHE without a curves extension, and
+	// SSLv3 doesn't contain extensions.
+	return hasComponent(suiteName, "ECDHE") || isTLS12Only(suiteName)
 }
 
 func isTLS12Only(suiteName string) bool {
@@ -905,18 +925,6 @@ func addBasicTests() {
 			},
 			shouldFail:    true,
 			expectedError: ":WRONG_CURVE:",
-		},
-		{
-			testType: serverTest,
-			name:     "BadRSAVersion",
-			config: Config{
-				CipherSuites: []uint16{TLS_RSA_WITH_RC4_128_SHA},
-				Bugs: ProtocolBugs{
-					RsaClientKeyExchangeVersion: VersionTLS11,
-				},
-			},
-			shouldFail:    true,
-			expectedError: ":DECRYPTION_FAILED_OR_BAD_RECORD_MAC:",
 		},
 		{
 			name: "NoFallbackSCSV",
@@ -1006,7 +1014,7 @@ func addBasicTests() {
 				},
 			},
 			shouldFail:    true,
-			expectedError: ":HANDSHAKE_RECORD_BEFORE_CCS:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			testType: serverTest,
@@ -1017,7 +1025,7 @@ func addBasicTests() {
 				},
 			},
 			shouldFail:    true,
-			expectedError: ":HANDSHAKE_RECORD_BEFORE_CCS:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			testType: serverTest,
@@ -1032,7 +1040,7 @@ func addBasicTests() {
 				"-advertise-npn", "\x03foo\x03bar\x03baz",
 			},
 			shouldFail:    true,
-			expectedError: ":HANDSHAKE_RECORD_BEFORE_CCS:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			name: "FragmentAcrossChangeCipherSpec-Client",
@@ -1042,7 +1050,7 @@ func addBasicTests() {
 				},
 			},
 			shouldFail:    true,
-			expectedError: ":HANDSHAKE_RECORD_BEFORE_CCS:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			testType: serverTest,
@@ -1053,7 +1061,7 @@ func addBasicTests() {
 				},
 			},
 			shouldFail:    true,
-			expectedError: ":HANDSHAKE_RECORD_BEFORE_CCS:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			testType: serverTest,
@@ -1068,7 +1076,7 @@ func addBasicTests() {
 				"-advertise-npn", "\x03foo\x03bar\x03baz",
 			},
 			shouldFail:    true,
-			expectedError: ":HANDSHAKE_RECORD_BEFORE_CCS:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			testType: serverTest,
@@ -1127,7 +1135,7 @@ func addBasicTests() {
 				},
 			},
 			shouldFail:    true,
-			expectedError: ":CCS_RECEIVED_EARLY:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			testType: serverTest,
@@ -1138,7 +1146,7 @@ func addBasicTests() {
 				},
 			},
 			shouldFail:    true,
-			expectedError: ":CCS_RECEIVED_EARLY:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			name: "SkipNewSessionTicket",
@@ -1148,7 +1156,7 @@ func addBasicTests() {
 				},
 			},
 			shouldFail:    true,
-			expectedError: ":CCS_RECEIVED_EARLY:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			testType: serverTest,
@@ -1425,7 +1433,7 @@ func addBasicTests() {
 				},
 			},
 			shouldFail:    true,
-			expectedError: ":DATA_BETWEEN_CCS_AND_FINISHED:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			name: "AppDataAfterChangeCipherSpec-Empty",
@@ -1435,7 +1443,7 @@ func addBasicTests() {
 				},
 			},
 			shouldFail:    true,
-			expectedError: ":DATA_BETWEEN_CCS_AND_FINISHED:",
+			expectedError: ":UNEXPECTED_RECORD:",
 		},
 		{
 			protocol: dtls,
@@ -1689,14 +1697,13 @@ func addBasicTests() {
 		{
 			name: "UnsupportedCurve",
 			config: Config{
-				CipherSuites: []uint16{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
-				// BoringSSL implements P-224 but doesn't enable it by
-				// default.
-				CurvePreferences: []CurveID{CurveP224},
+				CipherSuites:     []uint16{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
+				CurvePreferences: []CurveID{CurveP256},
 				Bugs: ProtocolBugs{
 					IgnorePeerCurvePreferences: true,
 				},
 			},
+			flags:         []string{"-p384-only"},
 			shouldFail:    true,
 			expectedError: ":WRONG_CURVE:",
 		},
@@ -1812,6 +1819,8 @@ func addBasicTests() {
 					NoSupportedCurves: true,
 				},
 			},
+			shouldFail:    true,
+			expectedError: ":NO_SHARED_CIPHER:",
 		},
 		{
 			testType: serverTest,
@@ -1997,6 +2006,88 @@ func addBasicTests() {
 			resumeSession:        true,
 			expectResumeRejected: true,
 		},
+		{
+			name: "CheckLeafCurve",
+			config: Config{
+				CipherSuites: []uint16{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+				Certificates: []Certificate{getECDSACertificate()},
+			},
+			flags:         []string{"-p384-only"},
+			shouldFail:    true,
+			expectedError: ":BAD_ECC_CERT:",
+		},
+		{
+			name: "BadChangeCipherSpec-1",
+			config: Config{
+				Bugs: ProtocolBugs{
+					BadChangeCipherSpec: []byte{2},
+				},
+			},
+			shouldFail:    true,
+			expectedError: ":BAD_CHANGE_CIPHER_SPEC:",
+		},
+		{
+			name: "BadChangeCipherSpec-2",
+			config: Config{
+				Bugs: ProtocolBugs{
+					BadChangeCipherSpec: []byte{1, 1},
+				},
+			},
+			shouldFail:    true,
+			expectedError: ":BAD_CHANGE_CIPHER_SPEC:",
+		},
+		{
+			protocol: dtls,
+			name:     "BadChangeCipherSpec-DTLS-1",
+			config: Config{
+				Bugs: ProtocolBugs{
+					BadChangeCipherSpec: []byte{2},
+				},
+			},
+			shouldFail:    true,
+			expectedError: ":BAD_CHANGE_CIPHER_SPEC:",
+		},
+		{
+			protocol: dtls,
+			name:     "BadChangeCipherSpec-DTLS-2",
+			config: Config{
+				Bugs: ProtocolBugs{
+					BadChangeCipherSpec: []byte{1, 1},
+				},
+			},
+			shouldFail:    true,
+			expectedError: ":BAD_CHANGE_CIPHER_SPEC:",
+		},
+		{
+			name:        "BadHelloRequest-1",
+			renegotiate: 1,
+			config: Config{
+				Bugs: ProtocolBugs{
+					BadHelloRequest: []byte{typeHelloRequest, 0, 0, 1, 1},
+				},
+			},
+			flags: []string{
+				"-renegotiate-freely",
+				"-expect-total-renegotiations", "1",
+			},
+			shouldFail:    true,
+			expectedError: ":BAD_HELLO_REQUEST:",
+		},
+		{
+			name:        "BadHelloRequest-2",
+			renegotiate: 1,
+			config: Config{
+				Bugs: ProtocolBugs{
+					BadHelloRequest: []byte{typeServerKeyExchange, 0, 0, 0},
+				},
+			},
+			flags: []string{
+				"-renegotiate-freely",
+				"-expect-total-renegotiations", "1",
+			},
+			shouldFail:    true,
+			expectedError: ":BAD_HELLO_REQUEST:",
+		},
 	}
 	testCases = append(testCases, basicTests...)
 }
@@ -2035,20 +2126,12 @@ func addCipherSuiteTests() {
 				continue
 			}
 
-			testCases = append(testCases, testCase{
-				testType: clientTest,
-				name:     ver.name + "-" + suite.name + "-client",
-				config: Config{
-					MinVersion:           ver.version,
-					MaxVersion:           ver.version,
-					CipherSuites:         []uint16{suite.id},
-					Certificates:         []Certificate{cert},
-					PreSharedKey:         []byte(psk),
-					PreSharedKeyIdentity: pskIdentity,
-				},
-				flags:         flags,
-				resumeSession: true,
-			})
+			shouldFail := isTLSOnly(suite.name) && ver.version == VersionSSL30
+
+			expectedError := ""
+			if shouldFail {
+				expectedError = ":NO_SHARED_CIPHER:"
+			}
 
 			testCases = append(testCases, testCase{
 				testType: serverTest,
@@ -2063,6 +2146,27 @@ func addCipherSuiteTests() {
 				},
 				certFile:      certFile,
 				keyFile:       keyFile,
+				flags:         flags,
+				resumeSession: true,
+				shouldFail:    shouldFail,
+				expectedError: expectedError,
+			})
+
+			if shouldFail {
+				continue
+			}
+
+			testCases = append(testCases, testCase{
+				testType: clientTest,
+				name:     ver.name + "-" + suite.name + "-client",
+				config: Config{
+					MinVersion:           ver.version,
+					MaxVersion:           ver.version,
+					CipherSuites:         []uint16{suite.id},
+					Certificates:         []Certificate{cert},
+					PreSharedKey:         []byte(psk),
+					PreSharedKeyIdentity: pskIdentity,
+				},
 				flags:         flags,
 				resumeSession: true,
 			})
@@ -2115,20 +2219,6 @@ func addCipherSuiteTests() {
 			flags:      flags,
 			messageLen: maxPlaintext,
 		})
-		testCases = append(testCases, testCase{
-			name: suite.name + "-LargeRecord-Extra",
-			config: Config{
-				CipherSuites:         []uint16{suite.id},
-				Certificates:         []Certificate{cert},
-				PreSharedKey:         []byte(psk),
-				PreSharedKeyIdentity: pskIdentity,
-				Bugs: ProtocolBugs{
-					SendLargeRecords: true,
-				},
-			},
-			flags:      append(flags, "-microsoft-big-sslv3-buffer"),
-			messageLen: maxPlaintext + 16384,
-		})
 		if isDTLSCipher(suite.name) {
 			testCases = append(testCases, testCase{
 				protocol: dtls,
@@ -2157,7 +2247,37 @@ func addCipherSuiteTests() {
 			},
 		},
 		shouldFail:    true,
-		expectedError: "BAD_DH_P_LENGTH",
+		expectedError: ":BAD_DH_P_LENGTH:",
+	})
+
+	testCases = append(testCases, testCase{
+		name: "SillyDH",
+		config: Config{
+			CipherSuites: []uint16{TLS_DHE_RSA_WITH_AES_128_GCM_SHA256},
+			Bugs: ProtocolBugs{
+				// This is a 4097-bit prime number, generated
+				// with:
+				// openssl gendh 4097 | openssl asn1parse -i
+				DHGroupPrime: bigFromHex("01D366FA64A47419B0CD4A45918E8D8C8430F674621956A9F52B0CA592BC104C6E38D60C58F2CA66792A2B7EBDC6F8FFE75AB7D6862C261F34E96A2AEEF53AB7C21365C2E8FB0582F71EB57B1C227C0E55AE859E9904A25EFECD7B435C4D4357BD840B03649D4A1F8037D89EA4E1967DBEEF1CC17A6111C48F12E9615FFF336D3F07064CB17C0B765A012C850B9E3AA7A6984B96D8C867DDC6D0F4AB52042572244796B7ECFF681CD3B3E2E29AAECA391A775BEE94E502FB15881B0F4AC60314EA947C0C82541C3D16FD8C0E09BB7F8F786582032859D9C13187CE6C0CB6F2D3EE6C3C9727C15F14B21D3CD2E02BDB9D119959B0E03DC9E5A91E2578762300B1517D2352FC1D0BB934A4C3E1B20CE9327DB102E89A6C64A8C3148EDFC5A94913933853442FA84451B31FD21E492F92DD5488E0D871AEBFE335A4B92431DEC69591548010E76A5B365D346786E9A2D3E589867D796AA5E25211201D757560D318A87DFB27F3E625BC373DB48BF94A63161C674C3D4265CB737418441B7650EABC209CF675A439BEB3E9D1AA1B79F67198A40CEFD1C89144F7D8BAF61D6AD36F466DA546B4174A0E0CAF5BD788C8243C7C2DDDCC3DB6FC89F12F17D19FBD9B0BC76FE92891CD6BA07BEA3B66EF12D0D85E788FD58675C1B0FBD16029DCC4D34E7A1A41471BDEDF78BF591A8B4E96D88BEC8EDC093E616292BFC096E69A916E8D624B"),
+			},
+		},
+		shouldFail:    true,
+		expectedError: ":DH_P_TOO_LONG:",
+	})
+
+	// This test ensures that Diffie-Hellman public values are padded with
+	// zeros so that they're the same length as the prime. This is to avoid
+	// hitting a bug in yaSSL.
+	testCases = append(testCases, testCase{
+		testType: serverTest,
+		name:     "DHPublicValuePadded",
+		config: Config{
+			CipherSuites: []uint16{TLS_DHE_RSA_WITH_AES_128_GCM_SHA256},
+			Bugs: ProtocolBugs{
+				RequireDHPublicValueLen: (1025 + 7) / 8,
+			},
+		},
+		flags: []string{"-use-sparse-dh-prime"},
 	})
 
 	// versionSpecificCiphersTest specifies a test for the TLS 1.0 and TLS
@@ -3168,40 +3288,6 @@ func addMinimumVersionTests() {
 	}
 }
 
-func addD5BugTests() {
-	testCases = append(testCases, testCase{
-		testType: serverTest,
-		name:     "D5Bug-NoQuirk-Reject",
-		config: Config{
-			CipherSuites: []uint16{TLS_RSA_WITH_AES_128_GCM_SHA256},
-			Bugs: ProtocolBugs{
-				SSL3RSAKeyExchange: true,
-			},
-		},
-		shouldFail:    true,
-		expectedError: ":TLS_RSA_ENCRYPTED_VALUE_LENGTH_IS_WRONG:",
-	})
-	testCases = append(testCases, testCase{
-		testType: serverTest,
-		name:     "D5Bug-Quirk-Normal",
-		config: Config{
-			CipherSuites: []uint16{TLS_RSA_WITH_AES_128_GCM_SHA256},
-		},
-		flags: []string{"-tls-d5-bug"},
-	})
-	testCases = append(testCases, testCase{
-		testType: serverTest,
-		name:     "D5Bug-Quirk-Bug",
-		config: Config{
-			CipherSuites: []uint16{TLS_RSA_WITH_AES_128_GCM_SHA256},
-			Bugs: ProtocolBugs{
-				SSL3RSAKeyExchange: true,
-			},
-		},
-		flags: []string{"-tls-d5-bug"},
-	})
-}
-
 func addExtensionTests() {
 	testCases = append(testCases, testCase{
 		testType: clientTest,
@@ -3801,15 +3887,28 @@ func addRenegotiationTests() {
 		expectedError: ":RENEGOTIATION_MISMATCH:",
 	})
 	testCases = append(testCases, testCase{
-		name: "Renegotiate-Client-NoExt",
+		name:        "Renegotiate-Client-Downgrade",
+		renegotiate: 1,
 		config: Config{
 			Bugs: ProtocolBugs{
-				NoRenegotiationInfo: true,
+				NoRenegotiationInfoAfterInitial: true,
 			},
 		},
+		flags:         []string{"-renegotiate-freely"},
 		shouldFail:    true,
-		expectedError: ":UNSAFE_LEGACY_RENEGOTIATION_DISABLED:",
-		flags:         []string{"-no-legacy-server-connect"},
+		expectedError: ":RENEGOTIATION_MISMATCH:",
+	})
+	testCases = append(testCases, testCase{
+		name:        "Renegotiate-Client-Upgrade",
+		renegotiate: 1,
+		config: Config{
+			Bugs: ProtocolBugs{
+				NoRenegotiationInfoInInitial: true,
+			},
+		},
+		flags:         []string{"-renegotiate-freely"},
+		shouldFail:    true,
+		expectedError: ":RENEGOTIATION_MISMATCH:",
 	})
 	testCases = append(testCases, testCase{
 		name:        "Renegotiate-Client-NoExt-Allowed",
@@ -4518,6 +4617,114 @@ func addCustomExtensionTests() {
 	})
 }
 
+func addRSAClientKeyExchangeTests() {
+	for bad := RSABadValue(1); bad < NumRSABadValues; bad++ {
+		testCases = append(testCases, testCase{
+			testType: serverTest,
+			name:     fmt.Sprintf("BadRSAClientKeyExchange-%d", bad),
+			config: Config{
+				// Ensure the ClientHello version and final
+				// version are different, to detect if the
+				// server uses the wrong one.
+				MaxVersion:   VersionTLS11,
+				CipherSuites: []uint16{TLS_RSA_WITH_RC4_128_SHA},
+				Bugs: ProtocolBugs{
+					BadRSAClientKeyExchange: bad,
+				},
+			},
+			shouldFail:    true,
+			expectedError: ":DECRYPTION_FAILED_OR_BAD_RECORD_MAC:",
+		})
+	}
+}
+
+var testCurves = []struct {
+	name string
+	id   CurveID
+}{
+	{"P-256", CurveP256},
+	{"P-384", CurveP384},
+	{"P-521", CurveP521},
+	{"X25519", CurveX25519},
+}
+
+func addCurveTests() {
+	for _, curve := range testCurves {
+		testCases = append(testCases, testCase{
+			name: "CurveTest-Client-" + curve.name,
+			config: Config{
+				CipherSuites:     []uint16{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
+				CurvePreferences: []CurveID{curve.id},
+			},
+			flags: []string{"-enable-all-curves"},
+		})
+		testCases = append(testCases, testCase{
+			testType: serverTest,
+			name:     "CurveTest-Server-" + curve.name,
+			config: Config{
+				CipherSuites:     []uint16{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
+				CurvePreferences: []CurveID{curve.id},
+			},
+			flags: []string{"-enable-all-curves"},
+		})
+	}
+}
+
+func addKeyExchangeInfoTests() {
+	testCases = append(testCases, testCase{
+		name: "KeyExchangeInfo-RSA-Client",
+		config: Config{
+			CipherSuites: []uint16{TLS_RSA_WITH_AES_128_GCM_SHA256},
+		},
+		// key.pem is a 1024-bit RSA key.
+		flags: []string{"-expect-key-exchange-info", "1024"},
+	})
+	// TODO(davidben): key_exchange_info doesn't work for plain RSA on the
+	// server. Either fix this or change the API as it's not very useful in
+	// this case.
+
+	testCases = append(testCases, testCase{
+		name: "KeyExchangeInfo-DHE-Client",
+		config: Config{
+			CipherSuites: []uint16{TLS_DHE_RSA_WITH_AES_128_GCM_SHA256},
+			Bugs: ProtocolBugs{
+				// This is a 1234-bit prime number, generated
+				// with:
+				// openssl gendh 1234 | openssl asn1parse -i
+				DHGroupPrime: bigFromHex("0215C589A86BE450D1255A86D7A08877A70E124C11F0C75E476BA6A2186B1C830D4A132555973F2D5881D5F737BB800B7F417C01EC5960AEBF79478F8E0BBB6A021269BD10590C64C57F50AD8169D5488B56EE38DC5E02DA1A16ED3B5F41FEB2AD184B78A31F3A5B2BEC8441928343DA35DE3D4F89F0D4CEDE0034045084A0D1E6182E5EF7FCA325DD33CE81BE7FA87D43613E8FA7A1457099AB53"),
+			},
+		},
+		flags: []string{"-expect-key-exchange-info", "1234"},
+	})
+	testCases = append(testCases, testCase{
+		testType: serverTest,
+		name:     "KeyExchangeInfo-DHE-Server",
+		config: Config{
+			CipherSuites: []uint16{TLS_DHE_RSA_WITH_AES_128_GCM_SHA256},
+		},
+		// bssl_shim as a server configures a 2048-bit DHE group.
+		flags: []string{"-expect-key-exchange-info", "2048"},
+	})
+
+	testCases = append(testCases, testCase{
+		name: "KeyExchangeInfo-ECDHE-Client",
+		config: Config{
+			CipherSuites:     []uint16{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
+			CurvePreferences: []CurveID{CurveX25519},
+		},
+		flags: []string{"-expect-key-exchange-info", "29", "-enable-all-curves"},
+	})
+	testCases = append(testCases, testCase{
+		testType: serverTest,
+		name:     "KeyExchangeInfo-ECDHE-Server",
+		config: Config{
+			CipherSuites:     []uint16{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
+			CurvePreferences: []CurveID{CurveX25519},
+		},
+		flags: []string{"-expect-key-exchange-info", "29", "-enable-all-curves"},
+	})
+}
+
 func worker(statusChan chan statusMsg, c chan *testCase, shimPath string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -4604,7 +4811,6 @@ func main() {
 	addDDoSCallbackTests()
 	addVersionNegotiationTests()
 	addMinimumVersionTests()
-	addD5BugTests()
 	addExtensionTests()
 	addResumptionVersionTests()
 	addExtendedMasterSecretTests()
@@ -4615,6 +4821,9 @@ func main() {
 	addExportKeyingMaterialTests()
 	addTLSUniqueTests()
 	addCustomExtensionTests()
+	addRSAClientKeyExchangeTests()
+	addCurveTests()
+	addKeyExchangeInfoTests()
 	for _, async := range []bool{false, true} {
 		for _, splitHandshake := range []bool{false, true} {
 			for _, protocol := range []protocol{tls, dtls} {

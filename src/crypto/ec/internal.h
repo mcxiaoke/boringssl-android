@@ -95,13 +95,22 @@ struct ec_method_st {
   int (*point_get_affine_coordinates)(const EC_GROUP *, const EC_POINT *,
                                       BIGNUM *x, BIGNUM *y, BN_CTX *);
 
-  /* used by EC_POINTs_mul, EC_POINT_mul, EC_POINT_precompute_mult,
-   * EC_POINT_have_precompute_mult
-   * (default implementations are used if the 'mul' pointer is 0): */
-  int (*mul)(const EC_GROUP *group, EC_POINT *r, const BIGNUM *scalar,
-             size_t num, const EC_POINT *points[], const BIGNUM *scalars[],
-             BN_CTX *);
-  int (*precompute_mult)(EC_GROUP *group, BN_CTX *);
+  /* Computes |r = g_scalar*generator + p_scalar*p| if |g_scalar| and |p_scalar|
+   * are both non-null. Computes |r = g_scalar*generator| if |p_scalar| is null.
+   * Computes |r = p_scalar*p| if g_scalar is null. At least one of |g_scalar|
+   * and |p_scalar| must be non-null, and |p| must be non-null if |p_scalar| is
+   * non-null. */
+  int (*mul)(const EC_GROUP *group, EC_POINT *r, const BIGNUM *g_scalar,
+             const EC_POINT *p, const BIGNUM *p_scalar, BN_CTX *ctx);
+
+  /* |check_pub_key_order| checks that the public key is in the proper subgroup
+   * by checking that |pub_key*group->order| is the point at infinity. This may
+   * be NULL for |EC_METHOD|s specialized for prime-order curves (i.e. with
+   * cofactor one), as this check is not necessary for such curves (See section
+   * A.3 of the NSA's "Suite B Implementer's Guide to FIPS 186-3
+   * (ECDSA)"). */
+  int (*check_pub_key_order)(const EC_GROUP *group, const EC_POINT *pub_key,
+                             BN_CTX *ctx);
 
   /* internal functions */
 
@@ -121,10 +130,6 @@ struct ec_method_st {
 
 const EC_METHOD* EC_GFp_mont_method(void);
 
-struct ec_pre_comp_st;
-void ec_pre_comp_free(struct ec_pre_comp_st *pre_comp);
-void *ec_pre_comp_dup(struct ec_pre_comp_st *pre_comp);
-
 struct ec_group_st {
   const EC_METHOD *meth;
 
@@ -133,7 +138,6 @@ struct ec_group_st {
 
   int curve_name; /* optional NID for named curve */
 
-  struct ec_pre_comp_st *pre_comp;
   const BN_MONT_CTX *mont_data; /* data for ECDSA inverse */
 
   /* The following members are handled by the method functions,
@@ -170,10 +174,8 @@ int ec_group_copy(EC_GROUP *dest, const EC_GROUP *src);
  * a built-in group. */
 const BN_MONT_CTX *ec_group_get_mont_data(const EC_GROUP *group);
 
-int ec_wNAF_mul(const EC_GROUP *group, EC_POINT *r, const BIGNUM *scalar,
-                size_t num, const EC_POINT *points[], const BIGNUM *scalars[],
-                BN_CTX *);
-int ec_wNAF_precompute_mult(EC_GROUP *group, BN_CTX *);
+int ec_wNAF_mul(const EC_GROUP *group, EC_POINT *r, const BIGNUM *g_scalar,
+                const EC_POINT *p, const BIGNUM *p_scalar, BN_CTX *ctx);
 
 /* method functions in simple.c */
 int ec_GFp_simple_group_init(EC_GROUP *);

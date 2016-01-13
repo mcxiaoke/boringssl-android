@@ -76,6 +76,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <utility>
+
 #include <openssl/bn.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
@@ -211,7 +213,7 @@ int main(int argc, char *argv[]) {
   if (!sample) {
     return 1;
   }
-  if (!test_lshift(bc_file.get(), ctx.get(), bssl::move(sample))) {
+  if (!test_lshift(bc_file.get(), ctx.get(), std::move(sample))) {
     return 1;
   }
   flush_fp(bc_file.get());
@@ -326,6 +328,13 @@ int main(int argc, char *argv[]) {
 
   printf("PASS\n");
   return 0;
+}
+
+static int HexToBIGNUM(ScopedBIGNUM *out, const char *in) {
+  BIGNUM *raw = NULL;
+  int ret = BN_hex2bn(&raw, in);
+  out->reset(raw);
+  return ret;
 }
 
 static bool test_add(FILE *fp) {
@@ -1105,6 +1114,27 @@ static bool test_mod_exp(FILE *fp, BN_CTX *ctx) {
       return false;
     }
   }
+
+   // Regression test for carry propagation bug in sqr8x_reduction.
+  if (!HexToBIGNUM(&a, "050505050505") ||
+      !HexToBIGNUM(&b, "02") ||
+      !HexToBIGNUM(
+          &c,
+          "4141414141414141414141274141414141414141414141414141414141414141"
+          "4141414141414141414141414141414141414141414141414141414141414141"
+          "4141414141414141414141800000000000000000000000000000000000000000"
+          "0000000000000000000000000000000000000000000000000000000000000000"
+          "0000000000000000000000000000000000000000000000000000000000000000"
+          "0000000000000000000000000000000000000000000000000000000001") ||
+      !BN_mod_exp(d.get(), a.get(), b.get(), c.get(), ctx) ||
+      !BN_mul(e.get(), a.get(), a.get(), ctx)) {
+    return false;
+  }
+  if (BN_cmp(d.get(), e.get()) != 0) {
+    fprintf(stderr, "BN_mod_exp and BN_mul produce different results!\n");
+    return false;
+  }
+
   return true;
 }
 
@@ -1286,23 +1316,23 @@ static bool test_exp(FILE *fp, BN_CTX *ctx) {
 
 // test_exp_mod_zero tests that 1**0 mod 1 == 0.
 static bool test_exp_mod_zero(void) {
-  ScopedBIGNUM zero(BN_new());
-  if (!zero) {
+  ScopedBIGNUM zero(BN_new()), a(BN_new()), r(BN_new());
+  if (!zero || !a || !r || !BN_rand(a.get(), 1024, 0, 0)) {
     return false;
   }
   BN_zero(zero.get());
 
-  ScopedBN_CTX ctx(BN_CTX_new());
-  ScopedBIGNUM r(BN_new());
-  if (!ctx || !r ||
-      !BN_mod_exp(r.get(), BN_value_one(), zero.get(), BN_value_one(), ctx.get())) {
-    return false;
-  }
-
-  if (!BN_is_zero(r.get())) {
-    fprintf(stderr, "1**0 mod 1 = ");
-    BN_print_fp(stderr, r.get());
-    fprintf(stderr, ", should be 0\n");
+  if (!BN_mod_exp(r.get(), a.get(), zero.get(), BN_value_one(), nullptr) ||
+      !BN_is_zero(r.get()) ||
+      !BN_mod_exp_mont(r.get(), a.get(), zero.get(), BN_value_one(), nullptr,
+                       nullptr) ||
+      !BN_is_zero(r.get()) ||
+      !BN_mod_exp_mont_consttime(r.get(), a.get(), zero.get(), BN_value_one(),
+                                 nullptr, nullptr) ||
+      !BN_is_zero(r.get()) ||
+      !BN_mod_exp_mont_word(r.get(), 42, zero.get(), BN_value_one(), nullptr,
+                            nullptr) ||
+      !BN_is_zero(r.get())) {
     return false;
   }
 
@@ -1541,13 +1571,6 @@ static bool test_dec2bn(BN_CTX *ctx) {
   }
 
   return true;
-}
-
-static int HexToBIGNUM(ScopedBIGNUM *out, const char *in) {
-  BIGNUM *raw = NULL;
-  int ret = BN_hex2bn(&raw, in);
-  out->reset(raw);
-  return ret;
 }
 
 static bool test_hex2bn(BN_CTX *ctx) {

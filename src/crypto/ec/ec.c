@@ -525,8 +525,6 @@ void EC_GROUP_free(EC_GROUP *group) {
     group->meth->group_finish(group);
   }
 
-  ec_pre_comp_free(group->pre_comp);
-
   EC_POINT_free(group->generator);
   BN_free(&group->order);
   BN_free(&group->cofactor);
@@ -547,8 +545,6 @@ int ec_group_copy(EC_GROUP *dest, const EC_GROUP *src) {
     return 1;
   }
 
-  ec_pre_comp_free(dest->pre_comp);
-  dest->pre_comp = ec_pre_comp_dup(src->pre_comp);
   dest->mont_data = src->mont_data;
 
   if (src->generator != NULL) {
@@ -617,12 +613,16 @@ const EC_POINT *EC_GROUP_get0_generator(const EC_GROUP *group) {
   return group->generator;
 }
 
+const BIGNUM *EC_GROUP_get0_order(const EC_GROUP *group) {
+  assert(!BN_is_zero(&group->order));
+  return &group->order;
+}
+
 int EC_GROUP_get_order(const EC_GROUP *group, BIGNUM *order, BN_CTX *ctx) {
-  if (!BN_copy(order, &group->order)) {
+  if (BN_copy(order, EC_GROUP_get0_order(group)) == NULL) {
     return 0;
   }
-
-  return !BN_is_zero(order);
+  return 1;
 }
 
 int EC_GROUP_get_cofactor(const EC_GROUP *group, BIGNUM *cofactor,
@@ -643,21 +643,6 @@ int EC_GROUP_get_curve_name(const EC_GROUP *group) { return group->curve_name; }
 
 unsigned EC_GROUP_get_degree(const EC_GROUP *group) {
   return ec_GFp_simple_group_get_degree(group);
-}
-
-int EC_GROUP_precompute_mult(EC_GROUP *group, BN_CTX *ctx) {
-  if (group->meth->precompute_mult != NULL) {
-    return group->meth->precompute_mult(group, ctx);
-  }
-
-  return 1; /* nothing to do, so report success */
-}
-
-int EC_GROUP_have_precompute_mult(const EC_GROUP *group) {
-  if (group->pre_comp != NULL) {
-    return 1;
-  }
-  return 0;
 }
 
 EC_POINT *EC_POINT_new(const EC_GROUP *group) {
@@ -856,39 +841,23 @@ int EC_POINT_invert(const EC_GROUP *group, EC_POINT *a, BN_CTX *ctx) {
 }
 
 int EC_POINT_mul(const EC_GROUP *group, EC_POINT *r, const BIGNUM *g_scalar,
-                 const EC_POINT *point, const BIGNUM *p_scalar, BN_CTX *ctx) {
-  /* just a convenient interface to EC_POINTs_mul() */
+                 const EC_POINT *p, const BIGNUM *p_scalar, BN_CTX *ctx) {
+  /* Previously, this function set |r| to the point at infinity if there was
+   * nothing to multiply. But, nobody should be calling this function with
+   * nothing to multiply in the first place. */
+  if ((g_scalar == NULL && p_scalar == NULL) ||
+      ((p == NULL) != (p_scalar == NULL)))  {
+    OPENSSL_PUT_ERROR(EC, ERR_R_PASSED_NULL_PARAMETER);
+    return 0;
+  }
 
-  const EC_POINT *points[1];
-  const BIGNUM *scalars[1];
-
-  points[0] = point;
-  scalars[0] = p_scalar;
-
-  return EC_POINTs_mul(group, r, g_scalar, (point != NULL && p_scalar != NULL),
-                       points, scalars, ctx);
-}
-
-int EC_POINTs_mul(const EC_GROUP *group, EC_POINT *r, const BIGNUM *scalar,
-                  size_t num, const EC_POINT *points[], const BIGNUM *scalars[],
-                  BN_CTX *ctx) {
-  if (group->meth != r->meth) {
+  if (group->meth != r->meth ||
+      (p != NULL && group->meth != p->meth)) {
     OPENSSL_PUT_ERROR(EC, EC_R_INCOMPATIBLE_OBJECTS);
     return 0;
   }
 
-  size_t i;
-  for (i = 0; i < num; i++) {
-    if (points[i]->meth != r->meth) {
-      break;
-    }
-  }
-  if (i != num) {
-    OPENSSL_PUT_ERROR(EC, EC_R_INCOMPATIBLE_OBJECTS);
-    return 0;
-  }
-
-  return group->meth->mul(group, r, scalar, num, points, scalars, ctx);
+  return group->meth->mul(group, r, g_scalar, p, p_scalar, ctx);
 }
 
 int ec_point_set_Jprojective_coordinates_GFp(const EC_GROUP *group, EC_POINT *point,

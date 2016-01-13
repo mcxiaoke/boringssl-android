@@ -172,7 +172,7 @@ SSL_SESSION *SSL_SESSION_new(void) {
   session->references = 1;
   session->timeout = SSL_DEFAULT_SESSION_TIMEOUT;
   session->time = (unsigned long)time(NULL);
-  CRYPTO_new_ex_data(&g_ex_data_class, session, &session->ex_data);
+  CRYPTO_new_ex_data(&session->ex_data);
   return session;
 }
 
@@ -278,12 +278,13 @@ SSL_SESSION *SSL_get1_session(SSL *ssl) {
   return SSL_SESSION_up_ref(ssl->session);
 }
 
-int SSL_SESSION_get_ex_new_index(long argl, void *argp, CRYPTO_EX_new *new_func,
+int SSL_SESSION_get_ex_new_index(long argl, void *argp,
+                                 CRYPTO_EX_unused *unused,
                                  CRYPTO_EX_dup *dup_func,
                                  CRYPTO_EX_free *free_func) {
   int index;
-  if (!CRYPTO_get_ex_new_index(&g_ex_data_class, &index, argl, argp, new_func,
-                               dup_func, free_func)) {
+  if (!CRYPTO_get_ex_new_index(&g_ex_data_class, &index, argl, argp, dup_func,
+                               free_func)) {
     return -1;
   }
   return index;
@@ -644,10 +645,10 @@ void SSL_CTX_flush_sessions(SSL_CTX *ctx, long time) {
   CRYPTO_MUTEX_unlock(&ctx->lock);
 }
 
-int ssl_clear_bad_session(SSL *s) {
-  if (s->session != NULL && !(s->shutdown & SSL_SENT_SHUTDOWN) &&
-      !SSL_in_init(s)) {
-    SSL_CTX_remove_session(s->ctx, s->session);
+int ssl_clear_bad_session(SSL *ssl) {
+  if (ssl->session != NULL && !(ssl->shutdown & SSL_SENT_SHUTDOWN) &&
+      !SSL_in_init(ssl)) {
+    SSL_CTX_remove_session(ssl->ctx, ssl->session);
     return 1;
   }
 
